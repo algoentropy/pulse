@@ -1,0 +1,32 @@
+import type { CategoryData } from "../types";
+import { CATEGORY_TOOLTIPS } from "../lib/tooltips";
+import { Tooltip } from "./Tooltip";
+import { TickerRow } from "./TickerRow";
+
+interface CategoryCardProps {
+  categoryKey: string;
+  data: CategoryData;
+}
+
+export function CategoryCard({ categoryKey, data }: CategoryCardProps) {
+  const tooltip = CATEGORY_TOOLTIPS[categoryKey];
+  const header = (
+    <div>
+      <h2 className="text-lg font-semibold text-zinc-100">{data.label}</h2>
+      <p className="text-xs text-zinc-500">{data.subtitle}</p>
+    </div>
+  );
+
+  return (
+    <div className="rounded-xl border border-zinc-800 bg-zinc-900/80 p-4">
+      <div className="mb-3 border-b border-zinc-800 pb-2">
+        {tooltip ? <Tooltip text={tooltip}>{header}</Tooltip> : header}
+      </div>
+      <div className="space-y-0.5">
+        {data.tickers.map((t) => (
+          <TickerRow key={t.ticker} entry={t} />
+        ))}
+      </div>
+    </div>
+  );
+}
