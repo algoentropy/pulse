@@ -18,3 +18,15 @@ export interface PulseResponse {
   scoreboard: CategoryData;
   geopolitics: CategoryData;
 }
+
+export interface HistoryPoint {
+  time: string;
+  value: number;
+}
+
+export type HistoryResponse = Record<string, HistoryPoint[]>;
+
+export interface InterpretationResponse {
+  categories: Record<string, string>;
+  overall: string;
+}

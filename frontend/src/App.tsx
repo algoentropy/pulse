@@ -1,10 +1,12 @@
 import { useEffect, useState } from "react";
-import type { PulseResponse } from "./types";
-import { fetchPulse } from "./lib/api";
+import type { PulseResponse, HistoryResponse, InterpretationResponse } from "./types";
+import { fetchPulse, fetchHistory, fetchInterpretation } from "./lib/api";
 import { Dashboard } from "./components/Dashboard";
 
 export default function App() {
   const [data, setData] = useState<PulseResponse | null>(null);
+  const [history, setHistory] = useState<HistoryResponse | undefined>();
+  const [interpretation, setInterpretation] = useState<InterpretationResponse | undefined>();
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -13,6 +15,14 @@ export default function App() {
       .then(setData)
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
+
+    fetchHistory()
+      .then(setHistory)
+      .catch(() => {});
+
+    fetchInterpretation()
+      .then(setInterpretation)
+      .catch(() => {});
   }, []);
 
   return (
@@ -28,7 +38,7 @@ export default function App() {
         {error && (
           <p className="text-red-400 text-center py-20">Error: {error}</p>
         )}
-        {data && <Dashboard data={data} />}
+        {data && <Dashboard data={data} history={history} interpretation={interpretation} />}
       </main>
     </div>
   );

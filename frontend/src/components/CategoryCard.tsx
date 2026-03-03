@@ -1,4 +1,4 @@
-import type { CategoryData } from "../types";
+import type { CategoryData, HistoryResponse } from "../types";
 import { CATEGORY_TOOLTIPS } from "../lib/tooltips";
 import { Tooltip } from "./Tooltip";
 import { TickerRow } from "./TickerRow";
@@ -6,9 +6,11 @@ import { TickerRow } from "./TickerRow";
 interface CategoryCardProps {
   categoryKey: string;
   data: CategoryData;
+  history?: HistoryResponse;
+  summary?: string;
 }
 
-export function CategoryCard({ categoryKey, data }: CategoryCardProps) {
+export function CategoryCard({ categoryKey, data, history, summary }: CategoryCardProps) {
   const tooltip = CATEGORY_TOOLTIPS[categoryKey];
   const header = (
     <div>
@@ -22,9 +24,12 @@ export function CategoryCard({ categoryKey, data }: CategoryCardProps) {
       <div className="mb-3 border-b border-zinc-800 pb-2">
         {tooltip ? <Tooltip text={tooltip}>{header}</Tooltip> : header}
       </div>
+      {summary && (
+        <p className="text-xs text-zinc-400 italic pt-1 pb-2">{summary}</p>
+      )}
       <div className="space-y-0.5">
         {data.tickers.map((t) => (
-          <TickerRow key={t.ticker} entry={t} />
+          <TickerRow key={t.ticker} entry={t} history={history?.[t.ticker]} />
         ))}
       </div>
     </div>
