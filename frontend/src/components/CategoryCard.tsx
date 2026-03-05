@@ -20,14 +20,14 @@ export function CategoryCard({ categoryKey, data, history, summary }: CategoryCa
   );
 
   return (
-    <div className="rounded-xl border border-zinc-800 bg-zinc-900/80 p-4 overflow-hidden">
+    <div className="rounded-xl border border-zinc-800 bg-zinc-900/80 p-4">
       <div className="mb-3 border-b border-zinc-800 pb-2">
         {tooltip ? <Tooltip text={tooltip}>{header}</Tooltip> : header}
       </div>
       {summary && (
         <p className="text-xs text-zinc-400 italic pt-1 pb-2">{summary}</p>
       )}
-      <div className="space-y-0.5">
+      <div className="space-y-0.5 overflow-hidden">
         {data.tickers.map((t) => (
           <TickerRow key={t.ticker} entry={t} history={history?.[t.ticker]} />
         ))}
