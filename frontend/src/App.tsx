@@ -7,6 +7,7 @@ export default function App() {
   const [data, setData] = useState<PulseResponse | null>(null);
   const [history, setHistory] = useState<HistoryResponse | undefined>();
   const [interpretation, setInterpretation] = useState<InterpretationResponse | undefined>();
+  const [interpretationLoading, setInterpretationLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -22,7 +23,8 @@ export default function App() {
 
     fetchInterpretation()
       .then(setInterpretation)
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => setInterpretationLoading(false));
   }, []);
 
   return (
@@ -38,7 +40,7 @@ export default function App() {
         {error && (
           <p className="text-red-400 text-center py-20">Error: {error}</p>
         )}
-        {data && <Dashboard data={data} history={history} interpretation={interpretation} />}
+        {data && <Dashboard data={data} history={history} interpretation={interpretation} interpretationLoading={interpretationLoading} />}
       </main>
     </div>
   );

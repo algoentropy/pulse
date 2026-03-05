@@ -14,9 +14,9 @@ export function TickerRow({ entry, history }: TickerRowProps) {
 
   if (status !== "active" || price == null || change_pct == null) {
     return (
-      <div className="flex items-center justify-between py-1.5 px-1 text-zinc-500">
+      <div className="flex items-center justify-between py-1.5 px-1 text-zinc-600">
         <span className="text-sm">{name}</span>
-        <span className="text-xs italic">{status === "closed" ? "Closed" : "N/A"}</span>
+        <span className="text-xs italic">Market closed</span>
       </div>
     );
   }

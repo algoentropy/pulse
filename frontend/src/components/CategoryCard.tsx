@@ -8,9 +8,10 @@ interface CategoryCardProps {
   data: CategoryData;
   history?: HistoryResponse;
   summary?: string;
+  summaryLoading?: boolean;
 }
 
-export function CategoryCard({ categoryKey, data, history, summary }: CategoryCardProps) {
+export function CategoryCard({ categoryKey, data, history, summary, summaryLoading }: CategoryCardProps) {
   const tooltip = CATEGORY_TOOLTIPS[categoryKey];
   const header = (
     <div>
@@ -24,6 +25,12 @@ export function CategoryCard({ categoryKey, data, history, summary }: CategoryCa
       <div className="mb-3 border-b border-zinc-800 pb-2">
         {tooltip ? <Tooltip text={tooltip}>{header}</Tooltip> : header}
       </div>
+      {summaryLoading && !summary && (
+        <div className="pt-1 pb-2 space-y-1.5">
+          <div className="animate-pulse rounded bg-zinc-800/60 h-2.5 w-5/6" />
+          <div className="animate-pulse rounded bg-zinc-800/60 h-2.5 w-2/3" />
+        </div>
+      )}
       {summary && (
         <p className="text-xs text-zinc-400 italic pt-1 pb-2">{summary}</p>
       )}

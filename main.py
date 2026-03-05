@@ -124,7 +124,7 @@ def fetch_pulse_data() -> PulseResponse:
             all_tickers.append(symbol)
 
     with _yf_lock:
-        data = yf.download(all_tickers, period="5d", progress=False)
+        data = yf.download(all_tickers, period="1mo", progress=False)
 
     result = {}
     for key, cat in CATEGORIES.items():
@@ -135,13 +135,13 @@ def fetch_pulse_data() -> PulseResponse:
                     data[("Close", symbol)] if len(all_tickers) > 1 else data["Close"]
                 )
                 close = close.dropna()
-                if len(close) < 2:
+                if len(close) == 0:
                     entries.append(
                         TickerEntry(name=name, ticker=symbol, status="closed")
                     )
                     continue
                 current = float(close.iloc[-1])
-                previous = float(close.iloc[-2])
+                previous = float(close.iloc[-2]) if len(close) >= 2 else current
                 if previous == 0 or math.isnan(current) or math.isnan(previous):
                     entries.append(
                         TickerEntry(name=name, ticker=symbol, status="error")
