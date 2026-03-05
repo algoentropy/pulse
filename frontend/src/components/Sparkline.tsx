@@ -16,8 +16,9 @@ export function Sparkline({ data }: SparklineProps) {
     const trendUp = data[data.length - 1].value >= data[0].value;
     const lineColor = trendUp ? "#34d399" : "#f87171";
 
+    const width = containerRef.current.clientWidth || 80;
     const chart = createChart(containerRef.current, {
-      width: 120,
+      width: Math.min(width, 120),
       height: 36,
       layout: { background: { color: "transparent" }, textColor: "transparent" },
       grid: { vertLines: { visible: false }, horzLines: { visible: false } },
@@ -46,5 +47,5 @@ export function Sparkline({ data }: SparklineProps) {
     };
   }, [data]);
 
-  return <div ref={containerRef} className="shrink-0 [&_a[href*='tradingview']]:!hidden" />;
+  return <div ref={containerRef} className="w-full max-w-[120px] shrink min-w-[60px] [&_a[href*='tradingview']]:!hidden" />;
 }

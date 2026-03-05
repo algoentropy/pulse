@@ -32,16 +32,16 @@ export function TickerRow({ entry, history }: TickerRowProps) {
   const nameEl = <span className="text-sm text-zinc-200">{name}</span>;
 
   return (
-    <div className="flex items-center gap-2 py-1.5 px-1 hover:bg-white/5 rounded transition-colors">
-      <div className="w-40 shrink-0">
+    <div className="flex items-center gap-2 py-1.5 px-1 hover:bg-white/5 rounded transition-colors min-w-0">
+      <div className="w-28 lg:w-40 shrink-0 truncate">
         {tooltip ? <Tooltip text={tooltip}>{nameEl}</Tooltip> : nameEl}
       </div>
-      <div className="flex-1 flex justify-center">
+      <div className="flex-1 flex justify-center min-w-0">
         {history && history.length >= 2 && <Sparkline data={history} />}
       </div>
-      <div className="flex items-center gap-3 tabular-nums shrink-0">
+      <div className="flex items-center gap-2 lg:gap-3 tabular-nums shrink-0">
         <span className="text-sm text-zinc-300">{formatPrice(ticker, price)}</span>
-        <span className={`text-sm font-medium w-20 text-right ${colorClass}`}>
+        <span className={`text-sm font-medium w-16 lg:w-20 text-right ${colorClass}`}>
           {formatChange(change_pct)}
         </span>
       </div>

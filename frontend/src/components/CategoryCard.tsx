@@ -20,7 +20,7 @@ export function CategoryCard({ categoryKey, data, history, summary }: CategoryCa
   );
 
   return (
-    <div className="rounded-xl border border-zinc-800 bg-zinc-900/80 p-4">
+    <div className="rounded-xl border border-zinc-800 bg-zinc-900/80 p-4 overflow-hidden">
       <div className="mb-3 border-b border-zinc-800 pb-2">
         {tooltip ? <Tooltip text={tooltip}>{header}</Tooltip> : header}
       </div>
