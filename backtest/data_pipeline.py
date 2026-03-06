@@ -1,31 +1,98 @@
-import yfinance as yf
-import pandas as pd
-import numpy as np
+import datetime
 from pathlib import Path
+
+import pandas as pd
+import yfinance as yf
+from sqlalchemy import create_engine
+
 from main import CATEGORIES
 
 
 def build_features():
-    print("Fetching historical data for 15 years...")
+    db_path = Path(__file__).parent / "market_data.db"
+    engine = create_engine(f"sqlite:///{db_path}")
+
     all_tickers = []
     for cat in CATEGORIES.values():
         for symbol, _ in cat["tickers"]:
             all_tickers.append(symbol)
 
-    # Download 15 years of daily data
-    # group_by='column' is default, which gives a MultiIndex columns
-    data = yf.download(all_tickers, period="15y", progress=True, threads=False)
+    # 1. Check existing database
+    existing_df = pd.DataFrame()
+    last_date = None
 
-    # We only care about the Adjusted Close or Close price
-    if "Adj Close" in data.columns.levels[0]:
-        close_df = data["Adj Close"]
+    try:
+        # Load the existing data
+        existing_df = pd.read_sql_table("raw_prices", engine, index_col="Date")
+        if not existing_df.empty:
+            # Get the max date
+            last_date = existing_df.index.max()
+            print(
+                f"Loaded {existing_df.shape[0]} existing rows from SQLite database. Last date: {last_date.date()}"
+            )
+    except ValueError:
+        # Table doesn't exist yet
+        print("No local database found. Initializing...")
+
+    # 2. Determine what to fetch
+    today = datetime.datetime.now().date()
+    # Adding a day buffer to ensure we don't skip the current incomplete trading day
+    tomorrow = today + datetime.timedelta(days=1)
+
+    fetch_new = False
+    new_data = pd.DataFrame()
+
+    if last_date is None:
+        print("Fetching historical data for 15 years from Yahoo Finance...")
+        data = yf.download(all_tickers, period="15y", progress=True, threads=False)
+        fetch_new = True
     else:
-        close_df = data["Close"]
+        last_date_date = pd.to_datetime(last_date).date()
+        if last_date_date < today:
+            print(f"Fetching missing data from {last_date_date} to {tomorrow}...")
+            # We fetch from last_date to tomorrow just to be safe, then we'll deduplicate
+            data = yf.download(
+                all_tickers,
+                start=last_date_date,
+                end=tomorrow,
+                progress=False,
+                threads=False,
+            )
+            fetch_new = True
+        else:
+            print("Database is already up to date for today.")
 
-    # Forward fill missing values
-    close_df = close_df.ffill()
+    if fetch_new:
+        if "Adj Close" in data.columns.levels[0]:
+            close_df = data["Adj Close"]
+        else:
+            close_df = data["Close"]
 
-    print(f"Downloaded shape: {close_df.shape}")
+        # Forward fill the new data chunk
+        close_df = close_df.ffill()
+
+        # Combine with existing data
+        if not existing_df.empty:
+            # We might have overlap due to the buffer, so we update existing rows and append new ones
+            combined_df = pd.concat([existing_df, close_df])
+            # Drop duplicates by index, keeping the latest fetched data
+            combined_df = combined_df[~combined_df.index.duplicated(keep="last")]
+        else:
+            combined_df = close_df
+
+        # Ensure the index is named 'Date' for SQLite
+        combined_df.index.name = "Date"
+
+        # Sort chronologically
+        combined_df = combined_df.sort_index()
+
+        # Save the full combined dataset back to SQLite (replace allows us to cleanly handle schema changes if we add tickers)
+        print(f"Writing {combined_df.shape[0]} rows to SQLite...")
+        combined_df.to_sql("raw_prices", engine, if_exists="replace", index=True)
+
+        close_df = combined_df
+    else:
+        close_df = existing_df
 
     # Create a new DataFrame for our features
     features = pd.DataFrame(index=close_df.index)
