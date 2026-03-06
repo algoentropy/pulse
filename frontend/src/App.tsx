@@ -1,12 +1,14 @@
 import { useEffect, useState } from "react";
-import type { PulseResponse, HistoryResponse, InterpretationResponse } from "./types";
-import { fetchPulse, fetchHistory, fetchInterpretation } from "./lib/api";
+import type { PulseResponse, HistoryResponse, InterpretationResponse, FeaturesResponse } from "./types";
+import { fetchPulse, fetchHistory, fetchInterpretation, fetchFeatures } from "./lib/api";
 import { Dashboard } from "./components/Dashboard";
+import { MacroSignals } from "./components/MacroSignals";
 
 export default function App() {
   const [data, setData] = useState<PulseResponse | null>(null);
   const [history, setHistory] = useState<HistoryResponse | undefined>();
   const [interpretation, setInterpretation] = useState<InterpretationResponse | undefined>();
+  const [features, setFeatures] = useState<FeaturesResponse | undefined>();
   const [interpretationLoading, setInterpretationLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -25,6 +27,10 @@ export default function App() {
       .then(setInterpretation)
       .catch(() => { })
       .finally(() => setInterpretationLoading(false));
+
+    fetchFeatures()
+      .then(setFeatures)
+      .catch((e) => console.error("Error fetching features:", e));
   }, []);
 
   return (
@@ -41,6 +47,7 @@ export default function App() {
           <p className="text-red-400 text-center py-20">Error: {error}</p>
         )}
         {data && <Dashboard data={data} history={history} interpretation={interpretation} interpretationLoading={interpretationLoading} />}
+        {features && <MacroSignals data={features} />}
       </main>
     </div>
   );

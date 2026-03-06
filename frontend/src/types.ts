@@ -30,3 +30,13 @@ export interface InterpretationResponse {
   categories: Record<string, string>;
   overall: string;
 }
+
+export interface FeaturePoint {
+  time: string;
+  value: number;
+}
+
+export interface FeaturesResponse {
+  copper_gold: FeaturePoint[];
+  vix_tnx: FeaturePoint[];
+}

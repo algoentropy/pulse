@@ -17,3 +17,9 @@ export async function fetchInterpretation(): Promise<InterpretationResponse> {
   if (!res.ok) throw new Error(`API error: ${res.status}`);
   return res.json();
 }
+
+export async function fetchFeatures(): Promise<import("../types").FeaturesResponse> {
+  const res = await fetch("/api/features");
+  if (!res.ok) throw new Error(`API error: ${res.status}`);
+  return res.json();
+}

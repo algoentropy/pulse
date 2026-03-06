@@ -20,7 +20,7 @@ export function Sparkline({ data }: SparklineProps) {
     const chart = createChart(containerRef.current, {
       width: Math.min(width, 120),
       height: 36,
-      layout: { background: { color: "transparent" }, textColor: "transparent" },
+      layout: { background: { color: "transparent" }, textColor: "transparent", attributionLogo: false },
       grid: { vertLines: { visible: false }, horzLines: { visible: false } },
       crosshair: { mode: 0 },
       rightPriceScale: { visible: false },

@@ -102,15 +102,15 @@ def fetch_history_data() -> dict[str, list[dict]]:
     result: dict[str, list[dict]] = {}
     for symbol, _ in (t for cat in CATEGORIES.values() for t in cat["tickers"]):
         try:
-            close = (
-                data[("Close", symbol)] if len(all_tickers) > 1 else data["Close"]
-            )
+            close = data[("Close", symbol)] if len(all_tickers) > 1 else data["Close"]
             close = close.dropna()
             points = []
             for ts, val in close.items():
                 v = float(val)
                 if not math.isnan(v):
-                    points.append({"time": ts.strftime("%Y-%m-%d"), "value": round(v, 6)})
+                    points.append(
+                        {"time": ts.strftime("%Y-%m-%d"), "value": round(v, 6)}
+                    )
             result[symbol] = points
         except Exception:
             result[symbol] = []
@@ -168,7 +168,15 @@ def fetch_pulse_data() -> PulseResponse:
 
 
 def fetch_interpretation() -> dict:
-    empty = {"categories": {"vitals": "", "muscles": "", "scoreboard": "", "geopolitics": ""}, "overall": ""}
+    empty = {
+        "categories": {
+            "vitals": "",
+            "muscles": "",
+            "scoreboard": "",
+            "geopolitics": "",
+        },
+        "overall": "",
+    }
     try:
         pulse = fetch_pulse_data()
         lines: list[str] = []
@@ -177,7 +185,9 @@ def fetch_interpretation() -> dict:
             lines.append(f"\n## {cat.label} — {cat.subtitle}")
             for t in cat.tickers:
                 if t.price is not None and t.change_pct is not None:
-                    lines.append(f"  {t.name} ({t.ticker}): ${t.price:,.2f}  {t.change_pct:+.2f}%")
+                    lines.append(
+                        f"  {t.name} ({t.ticker}): ${t.price:,.2f}  {t.change_pct:+.2f}%"
+                    )
                 else:
                     lines.append(f"  {t.name} ({t.ticker}): {t.status}")
 
@@ -232,6 +242,48 @@ def get_history():
 @app.get("/api/interpretation")
 def get_interpretation():
     return fetch_interpretation()
+
+
+@app.get("/api/features")
+def get_features():
+    try:
+        import pandas as pd
+
+        features_path = Path(__file__).parent / "backtest" / "macro_features.parquet"
+        if not features_path.exists():
+            return {"copper_gold": [], "vix_tnx": []}
+
+        df = pd.read_parquet(features_path)
+        # Take the last 252 trading days (~1 year)
+        df = df.tail(252)
+
+        # Prepare the lists according to lightweight-charts expected format { time: "YYYY-MM-DD", value: float }
+        copper_gold = []
+        vix_tnx = []
+
+        for idx, row in df.iterrows():
+            ts_str = idx.strftime("%Y-%m-%d")
+
+            if pd.notna(row.get("macro_copper_gold_ratio")):
+                copper_gold.append(
+                    {
+                        "time": ts_str,
+                        "value": round(float(row["macro_copper_gold_ratio"]), 6),
+                    }
+                )
+
+            if pd.notna(row.get("macro_vix_tnx_ratio")):
+                vix_tnx.append(
+                    {
+                        "time": ts_str,
+                        "value": round(float(row["macro_vix_tnx_ratio"]), 4),
+                    }
+                )
+
+        return {"copper_gold": copper_gold, "vix_tnx": vix_tnx}
+    except Exception as e:
+        print(f"Error loading features: {e}")
+        return {"copper_gold": [], "vix_tnx": []}
 
 
 # Serve frontend static files in production
