@@ -1,6 +1,7 @@
 export interface TickerEntry {
   name: string;
   ticker: string;
+  description?: string;
   price: number | null;
   change_pct: number | null;
   status: string;

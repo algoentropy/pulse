@@ -4,6 +4,7 @@ import { CATEGORY_TOOLTIPS, TICKER_TOOLTIPS } from "../lib/tooltips";
 import { formatPrice, formatChange } from "../lib/format";
 import { Tooltip } from "./Tooltip";
 import { Sparkline } from "./Sparkline";
+import { Info } from "lucide-react";
 
 interface DashboardProps {
   data: PulseResponse;
@@ -139,19 +140,24 @@ export function Dashboard({ data, history, interpretation, interpretationLoading
                     const chg1W = historyData ? changeFromHistory(historyData, 5) : null;
                     const chg1M = historyData ? changeFromHistory(historyData, 21) : null;
 
-                    const tickerTooltip = TICKER_TOOLTIPS[t.ticker];
+                    const tickerTooltip = t.description || TICKER_TOOLTIPS[t.ticker];
                     const tooltipText = tickerTooltip ? `${t.name}: ${tickerTooltip}` : t.name;
                     const nameEl = (
-                      <>
+                      <div className="flex items-center gap-1.5">
                         <span className="hidden sm:inline text-sm text-zinc-200">{t.name}</span>
                         <span className="sm:hidden text-sm text-zinc-200 font-medium">{t.ticker}</span>
-                      </>
+                        {tickerTooltip && (
+                          <Tooltip text={tooltipText}>
+                            <Info className="w-3.5 h-3.5 text-zinc-500 hover:text-zinc-300 transition-colors cursor-help" />
+                          </Tooltip>
+                        )}
+                      </div>
                     );
 
                     return (
                       <tr key={t.ticker} className="hover:bg-white/5 transition-colors">
-                        <td className="py-1.5 px-2 sm:px-4 truncate max-w-[80px] sm:max-w-none">
-                          <Tooltip text={tooltipText}>{nameEl}</Tooltip>
+                        <td className="py-1.5 px-2 sm:px-4 truncate max-w-[120px] sm:max-w-none">
+                          {nameEl}
                         </td>
                         <td className="py-1.5 px-2 sm:px-4 text-sm text-zinc-300 text-right tabular-nums">
                           {formatPrice(t.ticker, t.price!)}

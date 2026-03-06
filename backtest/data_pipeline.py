@@ -14,7 +14,7 @@ def build_features():
 
     all_tickers = []
     for cat in CATEGORIES.values():
-        for symbol, _ in cat["tickers"]:
+        for symbol, _, _ in cat["tickers"]:
             all_tickers.append(symbol)
 
     # 1. Check existing database

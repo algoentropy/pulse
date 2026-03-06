@@ -27,6 +27,7 @@ from backtest.model import train_model
 class TickerEntry(BaseModel):
     name: str
     ticker: str
+    description: str | None = None
     price: float | None = None
     change_pct: float | None = None
     status: str = "active"
@@ -77,7 +78,7 @@ def fetch_history_data(force_refresh: bool = False) -> dict[str, list[dict]]:
         data = pd.DataFrame(data)  # type: ignore
 
     result: dict[str, list[dict]] = {}
-    for symbol, _ in (
+    for symbol, _, _ in (
         t for cat in CATEGORIES.values() if cat is not None for t in cat["tickers"]
     ):
         try:
@@ -120,7 +121,7 @@ def fetch_pulse_data(force_refresh: bool = False) -> PulseResponse:
 
     all_tickers = []
     for cat in CATEGORIES.values():
-        for symbol, _ in cat["tickers"]:
+        for symbol, _, _ in cat["tickers"]:
             all_tickers.append(symbol)
 
     with _yf_lock:
@@ -134,7 +135,7 @@ def fetch_pulse_data(force_refresh: bool = False) -> PulseResponse:
         entries = []
         if cat is None:
             continue
-        for symbol, name in cat["tickers"]:
+        for symbol, name, desc in cat["tickers"]:
             try:
                 close = (
                     data[("Close", symbol)] if len(all_tickers) > 1 else data["Close"]
@@ -142,14 +143,18 @@ def fetch_pulse_data(force_refresh: bool = False) -> PulseResponse:
                 close = close.dropna()
                 if len(close) == 0:
                     entries.append(
-                        TickerEntry(name=name, ticker=symbol, status="closed")
+                        TickerEntry(
+                            name=name, ticker=symbol, description=desc, status="closed"
+                        )
                     )
                     continue
                 current = float(close.iloc[-1])
                 previous = float(close.iloc[-2]) if len(close) >= 2 else current
                 if previous == 0 or math.isnan(current) or math.isnan(previous):
                     entries.append(
-                        TickerEntry(name=name, ticker=symbol, status="error")
+                        TickerEntry(
+                            name=name, ticker=symbol, description=desc, status="error"
+                        )
                     )
                     continue
                 change = ((current - previous) / previous) * 100
@@ -157,12 +162,17 @@ def fetch_pulse_data(force_refresh: bool = False) -> PulseResponse:
                     TickerEntry(
                         name=name,
                         ticker=symbol,
+                        description=desc,
                         price=round(current, 6),
                         change_pct=round(change, 4),
                     )
                 )
             except Exception:
-                entries.append(TickerEntry(name=name, ticker=symbol, status="error"))
+                entries.append(
+                    TickerEntry(
+                        name=name, ticker=symbol, description=desc, status="error"
+                    )
+                )
         result[key] = CategoryData(
             label=cat["label"],
             subtitle=cat["subtitle"],
