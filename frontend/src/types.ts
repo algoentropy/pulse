@@ -48,6 +48,7 @@ export interface PredictionResponse {
   prediction?: "up" | "down";
   probability?: number;
   date?: string;
+  top_features?: Array<{ feature: string; importance: number }>;
 }
 
 export interface TrainResponse {

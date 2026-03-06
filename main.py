@@ -52,7 +52,7 @@ _yf_lock = threading.Lock()
 def _all_tickers() -> list[str]:
     tickers = []
     for cat in CATEGORIES.values():
-        for symbol, _ in cat["tickers"]:
+        for symbol, _, _ in cat["tickers"]:
             tickers.append(symbol)
     return tickers
 
@@ -353,11 +353,19 @@ def get_prediction():
         probs = clf.predict_proba(X_latest)[0]  # type: ignore
         prob_up = float(probs[1])  # type: ignore
 
+        importances = clf.feature_importances_
+        feature_names = X_latest.columns
+        feat_imp = sorted(
+            zip(feature_names, importances), key=lambda x: x[1], reverse=True
+        )[:3]
+        top_features = [{"feature": f, "importance": float(i)} for f, i in feat_imp]
+
         return {
             "status": "success",
             "prediction": "up" if int(pred) == 1 else "down",  # type: ignore
             "probability": prob_up,
             "date": pd.Timestamp(latest_row.index[-1]).strftime("%Y-%m-%d"),  # type: ignore
+            "top_features": top_features,
         }
 
     except Exception as e:
