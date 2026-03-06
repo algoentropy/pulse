@@ -1,5 +1,9 @@
-import type { PulseResponse, HistoryResponse, InterpretationResponse } from "../types";
-import { CategoryCard } from "./CategoryCard";
+import { Fragment } from "react";
+import type { PulseResponse, HistoryResponse, InterpretationResponse, HistoryPoint } from "../types";
+import { CATEGORY_TOOLTIPS, TICKER_TOOLTIPS } from "../lib/tooltips";
+import { formatPrice, formatChange } from "../lib/format";
+import { Tooltip } from "./Tooltip";
+import { Sparkline } from "./Sparkline";
 
 interface DashboardProps {
   data: PulseResponse;
@@ -9,10 +13,35 @@ interface DashboardProps {
 }
 
 const CATEGORY_KEYS = ["vitals", "muscles", "scoreboard", "geopolitics"] as const;
+const COL_SPAN = 6;
 
 function Shimmer({ className = "" }: { className?: string }) {
   return (
     <div className={`animate-pulse rounded bg-zinc-800/60 ${className}`} />
+  );
+}
+
+function changeFromHistory(points: HistoryPoint[], tradingDays: number): number | null {
+  if (!points || points.length < 2) return null;
+  const current = points[points.length - 1].value;
+  const idx = Math.max(0, points.length - 1 - tradingDays);
+  const past = points[idx].value;
+  if (past === 0) return null;
+  return ((current - past) / past) * 100;
+}
+
+function changeColor(val: number | null): string {
+  if (val == null) return "text-zinc-600";
+  if (val > 0) return "text-emerald-400";
+  if (val < 0) return "text-red-400";
+  return "text-zinc-400";
+}
+
+function ChangeCell({ value }: { value: number | null }) {
+  return (
+    <td className={`py-1.5 px-3 text-sm font-medium text-right tabular-nums ${changeColor(value)}`}>
+      {value != null ? formatChange(value) : "—"}
+    </td>
   );
 }
 
@@ -30,17 +59,110 @@ export function Dashboard({ data, history, interpretation, interpretationLoading
           <p className="text-sm text-zinc-300 italic">{interpretation.overall}</p>
         </div>
       )}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {CATEGORY_KEYS.map((key) => (
-          <CategoryCard
-            key={key}
-            categoryKey={key}
-            data={data[key]}
-            history={history}
-            summary={interpretation?.categories[key]}
-            summaryLoading={interpretationLoading && !interpretation}
-          />
-        ))}
+
+      <div className="rounded-xl border border-zinc-800 bg-zinc-900/80 overflow-hidden">
+        <table className="w-full border-collapse">
+          <thead>
+            <tr className="border-b border-zinc-800 text-xs text-zinc-500 uppercase tracking-wider">
+              <th className="text-left py-2 px-4 font-medium">Ticker</th>
+              <th className="text-center py-2 px-4 font-medium">Chart</th>
+              <th className="text-right py-2 px-4 font-medium">Last</th>
+              <th className="text-right py-2 px-3 font-medium">1D</th>
+              <th className="text-right py-2 px-3 font-medium">1W</th>
+              <th className="text-right py-2 px-3 font-medium">1M</th>
+            </tr>
+          </thead>
+          <tbody>
+            {CATEGORY_KEYS.map((key) => {
+              const cat = data[key];
+              const catTooltip = CATEGORY_TOOLTIPS[key];
+              const summary = interpretation?.categories[key];
+              const summaryLoading = interpretationLoading && !interpretation;
+
+              return (
+                <Fragment key={key}>
+                  <tr className="border-t border-zinc-700/60">
+                    <td colSpan={COL_SPAN} className="px-4 pt-4 pb-1">
+                      {catTooltip ? (
+                        <Tooltip text={catTooltip}>
+                          <div>
+                            <span className="text-lg font-semibold text-zinc-100">{cat.label}</span>
+                            <span className="ml-2 text-xs text-zinc-500">{cat.subtitle}</span>
+                          </div>
+                        </Tooltip>
+                      ) : (
+                        <div>
+                          <span className="text-lg font-semibold text-zinc-100">{cat.label}</span>
+                          <span className="ml-2 text-xs text-zinc-500">{cat.subtitle}</span>
+                        </div>
+                      )}
+                    </td>
+                  </tr>
+
+                  {summaryLoading && !summary && (
+                    <tr>
+                      <td colSpan={COL_SPAN} className="px-4 pb-2">
+                        <div className="space-y-1.5">
+                          <div className="animate-pulse rounded bg-zinc-800/60 h-2.5 w-5/6" />
+                          <div className="animate-pulse rounded bg-zinc-800/60 h-2.5 w-2/3" />
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                  {summary && (
+                    <tr>
+                      <td colSpan={COL_SPAN} className="px-4 pb-2">
+                        <p className="text-xs text-zinc-400 italic">{summary}</p>
+                      </td>
+                    </tr>
+                  )}
+
+                  {cat.tickers.map((t) => {
+                    const closed = t.status !== "active" || t.price == null || t.change_pct == null;
+
+                    if (closed) {
+                      return (
+                        <tr key={t.ticker} className="text-zinc-600">
+                          <td className="py-1.5 px-4 text-sm">{t.name}</td>
+                          <td colSpan={COL_SPAN - 1} className="py-1.5 px-4 text-xs italic text-right">
+                            Market closed
+                          </td>
+                        </tr>
+                      );
+                    }
+
+                    const historyData = history?.[t.ticker];
+                    const chg1D = t.change_pct;
+                    const chg1W = historyData ? changeFromHistory(historyData, 5) : null;
+                    const chg1M = historyData ? changeFromHistory(historyData, 21) : null;
+
+                    const tickerTooltip = TICKER_TOOLTIPS[t.ticker];
+                    const nameEl = <span className="text-sm text-zinc-200">{t.name}</span>;
+
+                    return (
+                      <tr key={t.ticker} className="hover:bg-white/5 transition-colors">
+                        <td className="py-1.5 px-4 truncate">
+                          {tickerTooltip ? <Tooltip text={tickerTooltip}>{nameEl}</Tooltip> : nameEl}
+                        </td>
+                        <td className="py-1.5 px-4">
+                          <div className="flex justify-center">
+                            {historyData && historyData.length >= 2 && <Sparkline data={historyData} />}
+                          </div>
+                        </td>
+                        <td className="py-1.5 px-4 text-sm text-zinc-300 text-right tabular-nums">
+                          {formatPrice(t.ticker, t.price!)}
+                        </td>
+                        <ChangeCell value={chg1D} />
+                        <ChangeCell value={chg1W} />
+                        <ChangeCell value={chg1M} />
+                      </tr>
+                    );
+                  })}
+                </Fragment>
+              );
+            })}
+          </tbody>
+        </table>
       </div>
     </div>
   );
