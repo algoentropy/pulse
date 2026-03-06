@@ -14,8 +14,13 @@ export async function fetchHistory(refresh: boolean = false): Promise<HistoryRes
   return res.json();
 }
 
-export async function fetchInterpretation(): Promise<InterpretationResponse> {
-  const res = await fetch("/api/interpretation");
+export async function fetchInterpretation(refresh: boolean = false, mode: "executive" | "beginner" = "executive"): Promise<InterpretationResponse> {
+  const params = new URLSearchParams();
+  if (refresh) params.append("refresh", "true");
+  if (mode !== "executive") params.append("mode", mode);
+
+  const qs = params.toString();
+  const res = await fetch(`/api/interpretation${qs ? "?" + qs : ""}`);
   if (!res.ok) throw new Error(`API error: ${res.status}`);
   return res.json();
 }

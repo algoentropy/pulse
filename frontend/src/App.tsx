@@ -13,6 +13,7 @@ export default function App() {
   const [interpretationLoading, setInterpretationLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [tutorMode, setTutorMode] = useState<"executive" | "beginner">("executive");
 
   const loadData = (refresh: boolean = false) => {
     setLoading(true);
@@ -26,15 +27,24 @@ export default function App() {
     fetchHistory(refresh)
       .then(setHistory)
       .catch(() => { });
-  };
 
-  useEffect(() => {
-    loadData();
-
-    fetchInterpretation()
+    setInterpretationLoading(true);
+    fetchInterpretation(refresh, tutorMode)
       .then(setInterpretation)
       .catch(() => { })
       .finally(() => setInterpretationLoading(false));
+  };
+
+  useEffect(() => {
+    setInterpretationLoading(true);
+    fetchInterpretation(false, tutorMode)
+      .then(setInterpretation)
+      .catch(() => { })
+      .finally(() => setInterpretationLoading(false));
+  }, [tutorMode]);
+
+  useEffect(() => {
+    loadData();
 
     fetchFeatures()
       .then(setFeatures)
@@ -68,7 +78,14 @@ export default function App() {
           <p className="text-red-400 text-center py-20">Error: {error}</p>
         )}
 
-        {data && <Dashboard data={data} history={history} interpretation={interpretation} interpretationLoading={interpretationLoading} />}
+        {data && <Dashboard
+          data={data}
+          history={history}
+          interpretation={interpretation}
+          interpretationLoading={interpretationLoading}
+          tutorMode={tutorMode}
+          setTutorMode={setTutorMode}
+        />}
 
         {features && <MacroSignals data={features} />}
 

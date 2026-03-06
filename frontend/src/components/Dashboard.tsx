@@ -11,6 +11,8 @@ interface DashboardProps {
   history?: HistoryResponse;
   interpretation?: InterpretationResponse;
   interpretationLoading?: boolean;
+  tutorMode?: "executive" | "beginner";
+  setTutorMode?: (mode: "executive" | "beginner") => void;
 }
 
 const CATEGORY_KEYS = ["vitals", "muscles", "scoreboard", "geopolitics"] as const;
@@ -46,9 +48,29 @@ function ChangeCell({ value, className = "" }: { value: number | null; className
   );
 }
 
-export function Dashboard({ data, history, interpretation, interpretationLoading }: DashboardProps) {
+export function Dashboard({ data, history, interpretation, interpretationLoading, tutorMode, setTutorMode }: DashboardProps) {
   return (
     <div>
+      <div className="flex justify-between items-center mb-4">
+        <h2 className="text-xl font-bold text-zinc-100">Market Pulse</h2>
+        {setTutorMode && (
+          <div className="flex bg-zinc-900 border border-zinc-800 p-1 rounded-lg">
+            <button
+              onClick={() => setTutorMode("executive")}
+              className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${tutorMode === "executive" ? "bg-zinc-800 text-zinc-100 shadow-sm" : "text-zinc-500 hover:text-zinc-300"}`}
+            >
+              Executive Summary
+            </button>
+            <button
+              onClick={() => setTutorMode("beginner")}
+              className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${tutorMode === "beginner" ? "bg-indigo-500/10 text-indigo-400 shadow-sm" : "text-zinc-500 hover:text-zinc-300"}`}
+            >
+              Beginner Breakdown
+            </button>
+          </div>
+        )}
+      </div>
+
       {interpretationLoading && !interpretation?.overall && (
         <div className="mb-4 rounded-xl border border-zinc-800 bg-zinc-900/80 p-4 space-y-2">
           <Shimmer className="h-3 w-3/4" />

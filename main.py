@@ -188,7 +188,7 @@ def fetch_pulse_data(force_refresh: bool = False) -> PulseResponse:
     return response
 
 
-def fetch_interpretation(force_refresh: bool = False) -> dict:
+def fetch_interpretation(force_refresh: bool = False, mode: str = "executive") -> dict:
     empty = {
         "categories": {
             "vitals": "",
@@ -199,7 +199,7 @@ def fetch_interpretation(force_refresh: bool = False) -> dict:
         "overall": "",
     }
 
-    cache_file = Path(__file__).parent / "pulse_cache" / "interpretation.json"
+    cache_file = Path(__file__).parent / "pulse_cache" / f"interpretation_{mode}.json"
     cache_ttl_seconds = 4 * 3600  # 4 hours
 
     try:
@@ -224,19 +224,33 @@ def fetch_interpretation(force_refresh: bool = False) -> dict:
 
         snapshot = "\n".join(lines)
         client = OpenAI(api_key=os.environ["OPENAI_API_KEY"])
+
+        executive_prompt = (
+            "You are a concise macro-market analyst. Given a market snapshot, "
+            "return JSON with two keys:\n"
+            '  "categories": an object with keys "vitals", "muscles", "scoreboard", "geopolitics" '
+            "each containing a 1-2 sentence interpretation of that category's data.\n"
+            '  "overall": a 2-3 sentence overall market narrative.\n'
+            "Return ONLY valid JSON, no markdown fences."
+        )
+
+        beginner_prompt = (
+            "You are an expert macro-economics tutor explaining the markets to a layman beginner. "
+            "Given a market snapshot, return JSON with two keys:\n"
+            '  "categories": an object with keys "vitals", "muscles", "scoreboard", "geopolitics" '
+            "each containing a 2-3 sentence highly educational explanation of *why* the assets in that category are moving and *how* they influence the broader economy. Avoid purely stating prices, explain the mechanics.\n"
+            '  "overall": a 3-sentence plain-English summary of what the economy is currently doing, acting almost like a tutorial.\n'
+            "Return ONLY valid JSON, no markdown fences."
+        )
+
+        sys_prompt = beginner_prompt if mode == "beginner" else executive_prompt
+
         resp = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[
                 {
                     "role": "system",
-                    "content": (
-                        "You are a concise macro-market analyst. Given a market snapshot, "
-                        "return JSON with two keys:\n"
-                        '  "categories": an object with keys "vitals", "muscles", "scoreboard", "geopolitics" '
-                        "each containing a 1-2 sentence interpretation of that category's data.\n"
-                        '  "overall": a 2-3 sentence overall market narrative.\n'
-                        "Return ONLY valid JSON, no markdown fences."
-                    ),
+                    "content": sys_prompt,
                 },
                 {"role": "user", "content": f"Current market snapshot:\n{snapshot}"},
             ],
@@ -278,8 +292,8 @@ def get_history(refresh: bool = False):
 
 
 @app.get("/api/interpretation")
-def get_interpretation(refresh: bool = False):
-    return fetch_interpretation(force_refresh=refresh)
+def get_interpretation(refresh: bool = False, mode: str = "executive"):
+    return fetch_interpretation(force_refresh=refresh, mode=mode)
 
 
 @app.get("/api/features")
