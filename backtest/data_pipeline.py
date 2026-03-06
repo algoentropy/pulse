@@ -5,7 +5,7 @@ import pandas as pd
 import yfinance as yf
 from sqlalchemy import create_engine
 
-from main import CATEGORIES
+from config import CATEGORIES
 
 
 def build_features():
@@ -151,6 +151,9 @@ def build_features():
     output_file = Path(__file__).parent / "macro_features.parquet"
     features.to_parquet(output_file)
     print(f"Successfully saved {output_file}")
+
+    # Properly close the SQLAlchemy engine to free file descriptors
+    engine.dispose()
 
 
 if __name__ == "__main__":

@@ -1,13 +1,15 @@
 import type { PulseResponse, HistoryResponse, InterpretationResponse } from "../types";
 
-export async function fetchPulse(): Promise<PulseResponse> {
-  const res = await fetch("/api/pulse");
+export async function fetchPulse(refresh: boolean = false): Promise<PulseResponse> {
+  const url = refresh ? "/api/pulse?refresh=true" : "/api/pulse";
+  const res = await fetch(url);
   if (!res.ok) throw new Error(`API error: ${res.status}`);
   return res.json();
 }
 
-export async function fetchHistory(): Promise<HistoryResponse> {
-  const res = await fetch("/api/history");
+export async function fetchHistory(refresh: boolean = false): Promise<HistoryResponse> {
+  const url = refresh ? "/api/history?refresh=true" : "/api/history";
+  const res = await fetch(url);
   if (!res.ok) throw new Error(`API error: ${res.status}`);
   return res.json();
 }

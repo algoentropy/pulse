@@ -4,16 +4,22 @@ import json
 import math
 import os
 import threading
+import time
 from pathlib import Path
 
-import yfinance as yf
+from config import CATEGORIES
+
+import joblib
 import pandas as pd
+import yfinance as yf
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from openai import OpenAI
 from pydantic import BaseModel
-from typing import Any
+
+from backtest.data_pipeline import build_features
+from backtest.model import train_model
 
 # --- Models ---
 
@@ -39,61 +45,6 @@ class PulseResponse(BaseModel):
     geopolitics: CategoryData
 
 
-from typing import TypedDict
-
-
-class CategoryDict(TypedDict):
-    label: str
-    subtitle: str
-    tickers: list[tuple[str, str]]
-
-
-# --- Ticker config ---
-
-CATEGORIES: dict[str, CategoryDict] = {
-    "vitals": {
-        "label": "The Vitals",
-        "subtitle": "Fear & Cost of Money",
-        "tickers": [
-            ("^VIX", "VIX"),
-            ("^TNX", "US 10-Year Yield"),
-            ("DX-Y.NYB", "US Dollar Index"),
-        ],
-    },
-    "muscles": {
-        "label": "The Muscles",
-        "subtitle": "Growth & Industry",
-        "tickers": [
-            ("HG=F", "Copper Futures"),
-            ("CL=F", "WTI Crude Oil"),
-            ("^GDAXI", "DAX"),
-            ("INDA", "MSCI India ETF"),
-        ],
-    },
-    "scoreboard": {
-        "label": "The Scoreboard",
-        "subtitle": "Wealth & Sentiment",
-        "tickers": [
-            ("^GSPC", "S&P 500"),
-            ("^NDX", "Nasdaq 100"),
-            ("^HSI", "Hang Seng"),
-            ("GC=F", "Gold Futures"),
-            ("BTC-USD", "Bitcoin"),
-        ],
-    },
-    "geopolitics": {
-        "label": "Geopolitics",
-        "subtitle": "Risk & Chokepoints",
-        "tickers": [
-            ("CHF=X", "USD/CHF"),
-            ("ITA", "Aerospace & Defense ETF"),
-            ("BDRY", "Dry Bulk Shipping ETF"),
-            ("CIBR", "Cybersecurity ETF"),
-        ],
-    },
-}
-
-
 _yf_lock = threading.Lock()
 
 
@@ -105,10 +56,22 @@ def _all_tickers() -> list[str]:
     return tickers
 
 
-def fetch_history_data() -> dict[str, list[dict]]:
+def fetch_history_data(force_refresh: bool = False) -> dict[str, list[dict]]:
+    cache_file = Path(__file__).parent / "pulse_cache" / "history.json"
+    cache_ttl_seconds = 30 * 60  # 30 mins
+
+    if not force_refresh and cache_file.exists():
+        mtime = cache_file.stat().st_mtime
+        if time.time() - mtime < cache_ttl_seconds:
+            try:
+                with open(cache_file, "r") as f:
+                    return json.load(f)
+            except Exception:
+                pass
+
     all_tickers = _all_tickers()
     with _yf_lock:
-        data = yf.download(all_tickers, period="3mo", progress=False)
+        data = yf.download(all_tickers, period="3mo", progress=False, threads=False)
         if data is None:
             return {}
         data = pd.DataFrame(data)  # type: ignore
@@ -133,17 +96,35 @@ def fetch_history_data() -> dict[str, list[dict]]:
             result[symbol] = points
         except Exception:
             result[symbol] = []
+
+    cache_file.parent.mkdir(parents=True, exist_ok=True)
+    with open(cache_file, "w") as f:
+        json.dump(result, f)
+
     return result
 
 
-def fetch_pulse_data() -> PulseResponse:
+def fetch_pulse_data(force_refresh: bool = False) -> PulseResponse:
+    cache_file = Path(__file__).parent / "pulse_cache" / "pulse.json"
+    cache_ttl_seconds = 30 * 60  # 30 mins
+
+    if not force_refresh and cache_file.exists():
+        mtime = cache_file.stat().st_mtime
+        if time.time() - mtime < cache_ttl_seconds:
+            try:
+                with open(cache_file, "r") as f:
+                    cached_data = json.load(f)
+                    return PulseResponse(**cached_data)
+            except Exception:
+                pass
+
     all_tickers = []
     for cat in CATEGORIES.values():
         for symbol, _ in cat["tickers"]:
             all_tickers.append(symbol)
 
     with _yf_lock:
-        data = yf.download(all_tickers, period="1mo", progress=False)
+        data = yf.download(all_tickers, period="1mo", progress=False, threads=False)
         if data is None:
             raise ValueError("Failed to download data")
         data = pd.DataFrame(data)  # type: ignore
@@ -188,10 +169,16 @@ def fetch_pulse_data() -> PulseResponse:
             tickers=entries,
         )
 
-    return PulseResponse(**result)
+    response = PulseResponse(**result)
+
+    cache_file.parent.mkdir(parents=True, exist_ok=True)
+    with open(cache_file, "w") as f:
+        json.dump(response.model_dump(), f)
+
+    return response
 
 
-def fetch_interpretation() -> dict:
+def fetch_interpretation(force_refresh: bool = False) -> dict:
     empty = {
         "categories": {
             "vitals": "",
@@ -201,8 +188,18 @@ def fetch_interpretation() -> dict:
         },
         "overall": "",
     }
+
+    cache_file = Path(__file__).parent / "pulse_cache" / "interpretation.json"
+    cache_ttl_seconds = 4 * 3600  # 4 hours
+
     try:
-        pulse = fetch_pulse_data()
+        if not force_refresh and cache_file.exists():
+            mtime = cache_file.stat().st_mtime
+            if time.time() - mtime < cache_ttl_seconds:
+                with open(cache_file, "r") as f:
+                    return json.load(f)
+
+        pulse = fetch_pulse_data(force_refresh=force_refresh)
         lines: list[str] = []
         for key in ("vitals", "muscles", "scoreboard", "geopolitics"):
             cat = getattr(pulse, key)
@@ -236,8 +233,15 @@ def fetch_interpretation() -> dict:
             temperature=0.4,
         )
         text = resp.choices[0].message.content or ""
-        return json.loads(text)
-    except Exception:
+        result = json.loads(text)
+
+        cache_file.parent.mkdir(parents=True, exist_ok=True)
+        with open(cache_file, "w") as f:
+            json.dump(result, f)
+
+        return result
+    except Exception as e:
+        print(f"Interpretation API error: {e}")
         return empty
 
 
@@ -254,25 +258,23 @@ app.add_middleware(
 
 
 @app.get("/api/pulse")
-def get_pulse():
-    return fetch_pulse_data()
+def get_pulse(refresh: bool = False):
+    return fetch_pulse_data(force_refresh=refresh)
 
 
 @app.get("/api/history")
-def get_history():
-    return fetch_history_data()
+def get_history(refresh: bool = False):
+    return fetch_history_data(force_refresh=refresh)
 
 
 @app.get("/api/interpretation")
-def get_interpretation():
-    return fetch_interpretation()
+def get_interpretation(refresh: bool = False):
+    return fetch_interpretation(force_refresh=refresh)
 
 
 @app.get("/api/features")
 def get_features():
     try:
-        import pandas as pd
-
         features_path = Path(__file__).parent / "backtest" / "macro_features.parquet"
         if not features_path.exists():
             return {"copper_gold": [], "vix_tnx": []}
@@ -313,9 +315,6 @@ def get_features():
 @app.get("/api/predict")
 def get_prediction():
     try:
-        import pandas as pd
-        import joblib
-
         base_path = Path(__file__).parent / "backtest"
         features_path = base_path / "macro_features.parquet"
         model_path = base_path / "rf_model.pkl"
@@ -365,9 +364,6 @@ class TrainResponse(BaseModel):
 @app.post("/api/train", response_model=TrainResponse)
 def train():
     try:
-        from backtest.data_pipeline import build_features
-        from backtest.model import train_model
-
         # Warning: This is a synchronous call that takes ~15-30s
         # In a real app we'd use celery/background tasks.
         # For this dashboard it's acceptable.
@@ -389,10 +385,6 @@ def train():
 @app.get("/api/backtest")
 def get_backtest():
     try:
-        import pandas as pd
-        import joblib
-        import numpy as np
-
         base_path = Path(__file__).parent / "backtest"
         features_path = base_path / "macro_features.parquet"
         model_path = base_path / "rf_model.pkl"
