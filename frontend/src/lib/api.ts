@@ -23,3 +23,21 @@ export async function fetchFeatures(): Promise<import("../types").FeaturesRespon
   if (!res.ok) throw new Error(`API error: ${res.status}`);
   return res.json();
 }
+
+export async function fetchPrediction(): Promise<import("../types").PredictionResponse> {
+  const res = await fetch("/api/predict");
+  if (!res.ok) throw new Error(`API error: ${res.status}`);
+  return res.json();
+}
+
+export async function triggerTrain(): Promise<import("../types").TrainResponse> {
+  const res = await fetch("/api/train", { method: "POST" });
+  if (!res.ok) throw new Error(`API error: ${res.status}`);
+  return res.json();
+}
+
+export async function fetchBacktest(): Promise<import("../types").BacktestResponse> {
+  const res = await fetch("/api/backtest");
+  if (!res.ok) throw new Error(`API error: ${res.status}`);
+  return res.json();
+}

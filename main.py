@@ -286,6 +286,166 @@ def get_features():
         return {"copper_gold": [], "vix_tnx": []}
 
 
+@app.get("/api/predict")
+def get_prediction():
+    try:
+        import pandas as pd
+        import joblib
+
+        base_path = Path(__file__).parent / "backtest"
+        features_path = base_path / "macro_features.parquet"
+        model_path = base_path / "rf_model.pkl"
+
+        if not features_path.exists() or not model_path.exists():
+            return {"status": "error", "message": "Model or features not found."}
+
+        df = pd.read_parquet(features_path)
+        clf = joblib.load(model_path)
+
+        # The last row represents the most recent close
+        latest_row = df.iloc[[-1]]
+
+        # Reconstruct the feature columns the model expects
+        feature_cols = [
+            col
+            for col in df.columns
+            if col not in ["target", "^GSPC_ret_5d_future", "^GSPC_ret_1d_future"]
+            and "future" not in col.lower()
+        ]
+
+        X_latest = latest_row[feature_cols]
+
+        pred = clf.predict(X_latest)[0]
+        # pred_proba returns probability of classes [0, 1]
+        probs = clf.predict_proba(X_latest)[0]
+        prob_up = float(probs[1])
+
+        return {
+            "status": "success",
+            "prediction": "up" if pred == 1 else "down",
+            "probability": prob_up,
+            "date": latest_row.index[-1].strftime("%Y-%m-%d"),
+        }
+
+    except Exception as e:
+        print(f"Predict error: {e}")
+        return {"status": "error", "message": str(e)}
+
+
+class TrainResponse(BaseModel):
+    status: str
+    message: str
+    metrics: dict | None = None
+
+
+@app.post("/api/train", response_model=TrainResponse)
+def train():
+    try:
+        from backtest.data_pipeline import build_features
+        from backtest.model import train_model
+
+        # Warning: This is a synchronous call that takes ~15-30s
+        # In a real app we'd use celery/background tasks.
+        # For this dashboard it's acceptable.
+        print("Starting data pipeline...")
+        build_features()
+        print("Data pipeline finished. Starting model training...")
+        metrics = train_model()
+
+        return TrainResponse(
+            status="success", message="Model retrained successfully", metrics=metrics
+        )
+    except Exception as e:
+        print(f"Train error: {e}")
+
+
+@app.get("/api/backtest")
+def get_backtest():
+    try:
+        import pandas as pd
+        import joblib
+        import numpy as np
+
+        base_path = Path(__file__).parent / "backtest"
+        features_path = base_path / "macro_features.parquet"
+        model_path = base_path / "rf_model.pkl"
+
+        if not features_path.exists() or not model_path.exists():
+            return {"strategy": [], "benchmark": []}
+
+        df = pd.read_parquet(features_path)
+        clf = joblib.load(model_path)
+
+        # 1. Recreate target and features as in visualize_model.py
+        TARGET_TICKER = "^GSPC"
+        FORWARD_DAYS = 5
+
+        future_return_col = f"{TARGET_TICKER}_ret_{FORWARD_DAYS}d_future"
+        df[future_return_col] = df[f"{TARGET_TICKER}_ret_{FORWARD_DAYS}d"].shift(
+            -FORWARD_DAYS
+        )
+        df = df.dropna(subset=[future_return_col])
+
+        # Exclude non-features
+        exclude_cols = [future_return_col, "target"]
+        feature_cols = [
+            col
+            for col in df.columns
+            if col not in exclude_cols and "future" not in col.lower()
+        ]
+
+        X = df[feature_cols]
+
+        # 2. Split exactly precisely at 80% to match training
+        split_idx = int(len(df) * 0.8)
+        X_test = X.iloc[split_idx:]
+
+        # Create 1-day future return for accurate compounding
+        daily_future_return_col = f"{TARGET_TICKER}_ret_1d_future"
+        df[daily_future_return_col] = df[f"{TARGET_TICKER}_ret_1d"].shift(-1)
+
+        test_df = df.iloc[split_idx:].copy()
+
+        # 3. Generate Predictions on the Test Set
+        test_df["predicted_signal"] = clf.predict(X_test)
+
+        # Simulate Strategy vs Benchmark
+        test_df["strategy_daily_return"] = test_df.apply(
+            lambda row: row[daily_future_return_col]
+            if row["predicted_signal"] == 1
+            else 0.0,
+            axis=1,
+        )
+        test_df["benchmark_daily_return"] = test_df[daily_future_return_col]
+
+        test_df["strategy_cumulative"] = (
+            1 + test_df["strategy_daily_return"]
+        ).cumprod()
+        test_df["benchmark_cumulative"] = (
+            1 + test_df["benchmark_daily_return"]
+        ).cumprod()
+
+        test_df = test_df.dropna(subset=["strategy_cumulative", "benchmark_cumulative"])
+
+        # 4. Format for lightweight charts
+        strategy_points = []
+        benchmark_points = []
+
+        for idx, row in test_df.iterrows():
+            ts_str = idx.strftime("%Y-%m-%d")
+            strategy_points.append(
+                {"time": ts_str, "value": round(float(row["strategy_cumulative"]), 4)}
+            )
+            benchmark_points.append(
+                {"time": ts_str, "value": round(float(row["benchmark_cumulative"]), 4)}
+            )
+
+        return {"strategy": strategy_points, "benchmark": benchmark_points}
+    except Exception as e:
+        print(f"Backtest API error: {e}")
+        return {"strategy": [], "benchmark": []}
+
+
 # Serve frontend static files in production
 DIST = Path(__file__).parent / "frontend" / "dist"
 if DIST.is_dir():

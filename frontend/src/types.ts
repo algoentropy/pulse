@@ -40,3 +40,28 @@ export interface FeaturesResponse {
   copper_gold: FeaturePoint[];
   vix_tnx: FeaturePoint[];
 }
+
+export interface PredictionResponse {
+  status: string;
+  message?: string;
+  prediction?: "up" | "down";
+  probability?: number;
+  date?: string;
+}
+
+export interface TrainResponse {
+  status: string;
+  message: string;
+  metrics?: {
+    accuracy: number;
+    precision: number;
+    train_samples: number;
+    test_samples: number;
+    top_features: Array<{ feature: string; importance: number }>;
+  };
+}
+
+export interface BacktestResponse {
+  strategy: FeaturePoint[];
+  benchmark: FeaturePoint[];
+}

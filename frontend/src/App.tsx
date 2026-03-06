@@ -3,6 +3,7 @@ import type { PulseResponse, HistoryResponse, InterpretationResponse, FeaturesRe
 import { fetchPulse, fetchHistory, fetchInterpretation, fetchFeatures } from "./lib/api";
 import { Dashboard } from "./components/Dashboard";
 import { MacroSignals } from "./components/MacroSignals";
+import { ModelInterface } from "./components/ModelInterface";
 
 export default function App() {
   const [data, setData] = useState<PulseResponse | null>(null);
@@ -39,16 +40,21 @@ export default function App() {
         <h1 className="text-2xl font-bold tracking-tight">Global Pulse</h1>
         <p className="text-sm text-zinc-500">Real-time macro dashboard</p>
       </header>
-      <main className="max-w-5xl mx-auto">
+      <main className="max-w-5xl mx-auto space-y-8">
         {loading && (
           <p className="text-zinc-500 text-center py-20">Loading market data...</p>
         )}
         {error && (
           <p className="text-red-400 text-center py-20">Error: {error}</p>
         )}
+
         {data && <Dashboard data={data} history={history} interpretation={interpretation} interpretationLoading={interpretationLoading} />}
+
         {features && <MacroSignals data={features} />}
+
+        {!loading && !error && <ModelInterface />}
       </main>
     </div>
   );
 }
+
