@@ -10,7 +10,7 @@ FORWARD_DAYS = 5  # Predict 1 week into the future
 
 
 def train_model():
-    print(f"Loading features from macro_features.parquet...")
+    print("Loading features from macro_features.parquet...")
     features_path = Path(__file__).parent / "macro_features.parquet"
     if not features_path.exists():
         print("Error: macro_features.parquet not found. Run data_pipeline.py first.")
@@ -77,7 +77,7 @@ def train_model():
     y_pred = clf.predict(X_test)
 
     acc = accuracy_score(y_test, y_pred)
-    prec = precision_score(y_test, y_pred, zero_division=0)
+    prec = precision_score(y_test, y_pred, zero_division=0.0)  # type: ignore
 
     print("\n--- Out-of-Sample Evaluation ---")
     print(f"Accuracy:  {acc:.2%}")

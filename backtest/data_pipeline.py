@@ -26,7 +26,7 @@ def build_features():
         existing_df = pd.read_sql_table("raw_prices", engine, index_col="Date")
         if not existing_df.empty:
             # Get the max date
-            last_date = existing_df.index.max()
+            last_date = pd.Timestamp(existing_df.index.max())  # type: ignore
             print(
                 f"Loaded {existing_df.shape[0]} existing rows from SQLite database. Last date: {last_date.date()}"
             )
@@ -40,15 +40,14 @@ def build_features():
     tomorrow = today + datetime.timedelta(days=1)
 
     fetch_new = False
-    new_data = pd.DataFrame()
 
     if last_date is None:
         print("Fetching historical data for 15 years from Yahoo Finance...")
         data = yf.download(all_tickers, period="15y", progress=True, threads=False)
         fetch_new = True
     else:
-        last_date_date = pd.to_datetime(last_date).date()
-        if last_date_date < today:
+        last_date_date = pd.Timestamp(last_date).date()  # type: ignore
+        if pd.notna(last_date_date) and last_date_date < today:  # type: ignore
             print(f"Fetching missing data from {last_date_date} to {tomorrow}...")
             # We fetch from last_date to tomorrow just to be safe, then we'll deduplicate
             data = yf.download(
@@ -63,10 +62,11 @@ def build_features():
             print("Database is already up to date for today.")
 
     if fetch_new:
-        if "Adj Close" in data.columns.levels[0]:
-            close_df = data["Adj Close"]
+        df_data: pd.DataFrame = data  # type: ignore
+        if "Adj Close" in df_data.columns.levels[0]:  # type: ignore
+            close_df = df_data["Adj Close"]
         else:
-            close_df = data["Close"]
+            close_df = df_data["Close"]
 
         # Forward fill the new data chunk
         close_df = close_df.ffill()
@@ -76,15 +76,15 @@ def build_features():
             # We might have overlap due to the buffer, so we update existing rows and append new ones
             combined_df = pd.concat([existing_df, close_df])
             # Drop duplicates by index, keeping the latest fetched data
-            combined_df = combined_df[~combined_df.index.duplicated(keep="last")]
+            combined_df = combined_df[~combined_df.index.duplicated(keep="last")]  # type: ignore
         else:
             combined_df = close_df
 
         # Ensure the index is named 'Date' for SQLite
-        combined_df.index.name = "Date"
+        combined_df.index.name = "Date"  # type: ignore
 
         # Sort chronologically
-        combined_df = combined_df.sort_index()
+        combined_df = combined_df.sort_index()  # type: ignore
 
         # Save the full combined dataset back to SQLite (replace allows us to cleanly handle schema changes if we add tickers)
         print(f"Writing {combined_df.shape[0]} rows to SQLite...")
@@ -95,22 +95,22 @@ def build_features():
         close_df = existing_df
 
     # Create a new DataFrame for our features
-    features = pd.DataFrame(index=close_df.index)
+    features = pd.DataFrame(index=close_df.index)  # type: ignore
 
     print("Computing features...")
     for symbol in all_tickers:
         # Avoid issues where data couldn't be downloaded at all
-        if symbol not in close_df.columns or close_df[symbol].isna().all():
+        if symbol not in close_df.columns or close_df[symbol].isna().all():  # type: ignore
             print(f"Warning: No valid data for {symbol}, skipping.")
             continue
 
         prices = close_df[symbol]
 
         # Returns
-        features[f"{symbol}_ret_1d"] = prices.pct_change(periods=1)
-        features[f"{symbol}_ret_5d"] = prices.pct_change(periods=5)
-        features[f"{symbol}_ret_21d"] = prices.pct_change(periods=21)
-        features[f"{symbol}_ret_63d"] = prices.pct_change(periods=63)
+        features[f"{symbol}_ret_1d"] = prices.pct_change(periods=1)  # type: ignore
+        features[f"{symbol}_ret_5d"] = prices.pct_change(periods=5)  # type: ignore
+        features[f"{symbol}_ret_21d"] = prices.pct_change(periods=21)  # type: ignore
+        features[f"{symbol}_ret_63d"] = prices.pct_change(periods=63)  # type: ignore
 
         # Volatility (21-day rolling std dev of daily returns)
         features[f"{symbol}_vol_21d"] = (

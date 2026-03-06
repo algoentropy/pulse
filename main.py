@@ -7,11 +7,13 @@ import threading
 from pathlib import Path
 
 import yfinance as yf
+import pandas as pd
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from openai import OpenAI
 from pydantic import BaseModel
+from typing import Any
 
 # --- Models ---
 
@@ -37,9 +39,18 @@ class PulseResponse(BaseModel):
     geopolitics: CategoryData
 
 
+from typing import TypedDict
+
+
+class CategoryDict(TypedDict):
+    label: str
+    subtitle: str
+    tickers: list[tuple[str, str]]
+
+
 # --- Ticker config ---
 
-CATEGORIES: dict[str, dict] = {
+CATEGORIES: dict[str, CategoryDict] = {
     "vitals": {
         "label": "The Vitals",
         "subtitle": "Fear & Cost of Money",
@@ -98,18 +109,26 @@ def fetch_history_data() -> dict[str, list[dict]]:
     all_tickers = _all_tickers()
     with _yf_lock:
         data = yf.download(all_tickers, period="3mo", progress=False)
+        if data is None:
+            return {}
+        data = pd.DataFrame(data)  # type: ignore
 
     result: dict[str, list[dict]] = {}
-    for symbol, _ in (t for cat in CATEGORIES.values() for t in cat["tickers"]):
+    for symbol, _ in (
+        t for cat in CATEGORIES.values() if cat is not None for t in cat["tickers"]
+    ):
         try:
             close = data[("Close", symbol)] if len(all_tickers) > 1 else data["Close"]
             close = close.dropna()
             points = []
             for ts, val in close.items():
-                v = float(val)
+                v = float(val)  # type: ignore
                 if not math.isnan(v):
                     points.append(
-                        {"time": ts.strftime("%Y-%m-%d"), "value": round(v, 6)}
+                        {
+                            "time": pd.Timestamp(str(ts)).strftime("%Y-%m-%d"),
+                            "value": round(v, 6),
+                        }  # type: ignore
                     )
             result[symbol] = points
         except Exception:
@@ -125,10 +144,15 @@ def fetch_pulse_data() -> PulseResponse:
 
     with _yf_lock:
         data = yf.download(all_tickers, period="1mo", progress=False)
+        if data is None:
+            raise ValueError("Failed to download data")
+        data = pd.DataFrame(data)  # type: ignore
 
     result = {}
     for key, cat in CATEGORIES.items():
         entries = []
+        if cat is None:
+            continue
         for symbol, name in cat["tickers"]:
             try:
                 close = (
@@ -262,21 +286,21 @@ def get_features():
         vix_tnx = []
 
         for idx, row in df.iterrows():
-            ts_str = idx.strftime("%Y-%m-%d")
+            ts_str = pd.Timestamp(idx).strftime("%Y-%m-%d")  # type: ignore
 
-            if pd.notna(row.get("macro_copper_gold_ratio")):
+            if pd.notna(row.get("macro_copper_gold_ratio")) is True:
                 copper_gold.append(
                     {
                         "time": ts_str,
-                        "value": round(float(row["macro_copper_gold_ratio"]), 6),
+                        "value": round(float(row["macro_copper_gold_ratio"]), 6),  # type: ignore
                     }
                 )
 
-            if pd.notna(row.get("macro_vix_tnx_ratio")):
+            if pd.notna(row.get("macro_vix_tnx_ratio")) is True:  # type: ignore
                 vix_tnx.append(
                     {
                         "time": ts_str,
-                        "value": round(float(row["macro_vix_tnx_ratio"]), 4),
+                        "value": round(float(row["macro_vix_tnx_ratio"]), 4),  # type: ignore
                     }
                 )
 
@@ -315,16 +339,16 @@ def get_prediction():
 
         X_latest = latest_row[feature_cols]
 
-        pred = clf.predict(X_latest)[0]
+        pred = clf.predict(X_latest)[0]  # type: ignore
         # pred_proba returns probability of classes [0, 1]
-        probs = clf.predict_proba(X_latest)[0]
-        prob_up = float(probs[1])
+        probs = clf.predict_proba(X_latest)[0]  # type: ignore
+        prob_up = float(probs[1])  # type: ignore
 
         return {
             "status": "success",
-            "prediction": "up" if pred == 1 else "down",
+            "prediction": "up" if int(pred) == 1 else "down",  # type: ignore
             "probability": prob_up,
-            "date": latest_row.index[-1].strftime("%Y-%m-%d"),
+            "date": pd.Timestamp(latest_row.index[-1]).strftime("%Y-%m-%d"),  # type: ignore
         }
 
     except Exception as e:
@@ -435,12 +459,12 @@ def get_backtest():
         benchmark_points = []
 
         for idx, row in test_df.iterrows():
-            ts_str = idx.strftime("%Y-%m-%d")
+            ts_str = pd.Timestamp(idx).strftime("%Y-%m-%d")  # type: ignore
             strategy_points.append(
-                {"time": ts_str, "value": round(float(row["strategy_cumulative"]), 4)}
+                {"time": ts_str, "value": round(float(row["strategy_cumulative"]), 4)}  # type: ignore
             )
             benchmark_points.append(
-                {"time": ts_str, "value": round(float(row["benchmark_cumulative"]), 4)}
+                {"time": ts_str, "value": round(float(row["benchmark_cumulative"]), 4)}  # type: ignore
             )
 
         return {"strategy": strategy_points, "benchmark": benchmark_points}
