@@ -352,11 +352,14 @@ def train():
         print("Data pipeline finished. Starting model training...")
         metrics = train_model()
 
-        return TrainResponse(
-            status="success", message="Model retrained successfully", metrics=metrics
-        )
+        return {
+            "status": "success",
+            "message": "Model retrained successfully",
+            "metrics": metrics,
+        }
     except Exception as e:
         print(f"Train error: {e}")
+        return {"status": "error", "message": str(e)}
 
 
 @app.get("/api/backtest")

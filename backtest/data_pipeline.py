@@ -14,7 +14,7 @@ def build_features():
 
     # Download 15 years of daily data
     # group_by='column' is default, which gives a MultiIndex columns
-    data = yf.download(all_tickers, period="15y", progress=True)
+    data = yf.download(all_tickers, period="15y", progress=True, threads=False)
 
     # We only care about the Adjusted Close or Close price
     if "Adj Close" in data.columns.levels[0]:
