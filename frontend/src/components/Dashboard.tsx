@@ -37,9 +37,9 @@ function changeColor(val: number | null): string {
   return "text-zinc-400";
 }
 
-function ChangeCell({ value }: { value: number | null }) {
+function ChangeCell({ value, className = "" }: { value: number | null; className?: string }) {
   return (
-    <td className={`py-1.5 px-3 text-sm font-medium text-right tabular-nums ${changeColor(value)}`}>
+    <td className={`py-1.5 px-3 text-sm font-medium text-right tabular-nums ${changeColor(value)} ${className}`}>
       {value != null ? formatChange(value) : "—"}
     </td>
   );
@@ -60,16 +60,16 @@ export function Dashboard({ data, history, interpretation, interpretationLoading
         </div>
       )}
 
-      <div className="rounded-xl border border-zinc-800 bg-zinc-900/80 overflow-hidden">
+      <div className="rounded-xl border border-zinc-800 bg-zinc-900/80 overflow-x-auto">
         <table className="w-full border-collapse">
           <thead>
             <tr className="border-b border-zinc-800 text-xs text-zinc-500 uppercase tracking-wider">
-              <th className="text-left py-2 px-4 font-medium">Ticker</th>
-              <th className="text-center py-2 px-4 font-medium">Chart</th>
-              <th className="text-right py-2 px-4 font-medium">Last</th>
-              <th className="text-right py-2 px-3 font-medium">1D</th>
-              <th className="text-right py-2 px-3 font-medium">1W</th>
-              <th className="text-right py-2 px-3 font-medium">1M</th>
+              <th className="text-left py-2 px-2 sm:px-4 font-medium">Ticker</th>
+              <th className="text-right py-2 px-2 sm:px-4 font-medium">Last</th>
+              <th className="text-right py-2 px-2 sm:px-3 font-medium">1D</th>
+              <th className="text-right py-2 px-2 sm:px-3 font-medium">1W</th>
+              <th className="text-right py-2 px-2 sm:px-3 font-medium">1M</th>
+              <th className="text-center py-2 px-2 sm:px-4 font-medium hidden sm:table-cell">Chart</th>
             </tr>
           </thead>
           <tbody>
@@ -123,8 +123,11 @@ export function Dashboard({ data, history, interpretation, interpretationLoading
                     if (closed) {
                       return (
                         <tr key={t.ticker} className="text-zinc-600">
-                          <td className="py-1.5 px-4 text-sm">{t.name}</td>
-                          <td colSpan={COL_SPAN - 1} className="py-1.5 px-4 text-xs italic text-right">
+                          <td className="py-1.5 px-2 sm:px-4 text-sm max-w-[80px] sm:max-w-none truncate">
+                            <span className="hidden sm:inline">{t.name}</span>
+                            <span className="sm:hidden">{t.ticker}</span>
+                          </td>
+                          <td colSpan={COL_SPAN - 1} className="py-1.5 px-2 sm:px-4 text-xs italic text-right">
                             Market closed
                           </td>
                         </tr>
@@ -137,24 +140,30 @@ export function Dashboard({ data, history, interpretation, interpretationLoading
                     const chg1M = historyData ? changeFromHistory(historyData, 21) : null;
 
                     const tickerTooltip = TICKER_TOOLTIPS[t.ticker];
-                    const nameEl = <span className="text-sm text-zinc-200">{t.name}</span>;
+                    const tooltipText = tickerTooltip ? `${t.name}: ${tickerTooltip}` : t.name;
+                    const nameEl = (
+                      <>
+                        <span className="hidden sm:inline text-sm text-zinc-200">{t.name}</span>
+                        <span className="sm:hidden text-sm text-zinc-200 font-medium">{t.ticker}</span>
+                      </>
+                    );
 
                     return (
                       <tr key={t.ticker} className="hover:bg-white/5 transition-colors">
-                        <td className="py-1.5 px-4 truncate">
-                          {tickerTooltip ? <Tooltip text={tickerTooltip}>{nameEl}</Tooltip> : nameEl}
+                        <td className="py-1.5 px-2 sm:px-4 truncate max-w-[80px] sm:max-w-none">
+                          <Tooltip text={tooltipText}>{nameEl}</Tooltip>
                         </td>
-                        <td className="py-1.5 px-4">
-                          <div className="flex justify-center">
-                            {historyData && historyData.length >= 2 && <Sparkline data={historyData} />}
-                          </div>
-                        </td>
-                        <td className="py-1.5 px-4 text-sm text-zinc-300 text-right tabular-nums">
+                        <td className="py-1.5 px-2 sm:px-4 text-sm text-zinc-300 text-right tabular-nums">
                           {formatPrice(t.ticker, t.price!)}
                         </td>
                         <ChangeCell value={chg1D} />
                         <ChangeCell value={chg1W} />
                         <ChangeCell value={chg1M} />
+                        <td className="py-1.5 px-2 sm:px-4 hidden sm:table-cell">
+                          <div className="flex justify-center">
+                            {historyData && historyData.length >= 2 && <Sparkline data={historyData} />}
+                          </div>
+                        </td>
                       </tr>
                     );
                   })}

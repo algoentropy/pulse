@@ -19,16 +19,16 @@ export default function App() {
 
     fetchHistory()
       .then(setHistory)
-      .catch(() => {});
+      .catch(() => { });
 
     fetchInterpretation()
       .then(setInterpretation)
-      .catch(() => {})
+      .catch(() => { })
       .finally(() => setInterpretationLoading(false));
   }, []);
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-zinc-100 p-6">
+    <div className="min-h-screen bg-zinc-950 text-zinc-100 p-3 sm:p-6 md:p-8">
       <header className="max-w-5xl mx-auto mb-6">
         <h1 className="text-2xl font-bold tracking-tight">Global Pulse</h1>
         <p className="text-sm text-zinc-500">Real-time macro dashboard</p>
