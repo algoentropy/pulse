@@ -118,7 +118,7 @@ export function Dashboard({ data, history, interpretation, interpretationLoading
         </div>
       )}
 
-      <div className="rounded-xl border border-zinc-800 bg-zinc-900/80 overflow-x-auto">
+      <div className="rounded-xl border border-zinc-800 bg-zinc-900/80 overflow-x-auto overflow-y-hidden">
         <table className="w-full border-collapse">
           <thead>
             <tr className="border-b border-zinc-800 text-xs text-zinc-500 uppercase tracking-wider">
