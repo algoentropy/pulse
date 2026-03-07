@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import type { PredictionResponse, TrainResponse } from "../types";
-import { fetchPrediction, triggerTrain } from "../lib/api";
+import { fetchPrediction, triggerTrain, triggerSimulation } from "../lib/api";
 import { BacktestChart } from "./BacktestChart";
 
 const FEATURE_NAMES: Record<string, string> = {
@@ -25,6 +25,48 @@ export function ModelInterface() {
     const [training, setTraining] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [trainCount, setTrainCount] = useState(0);
+
+    const [simulationMode, setSimulationMode] = useState(false);
+    const [overrides, setOverrides] = useState<Record<string, number>>({});
+    const [simPrediction, setSimPrediction] = useState<PredictionResponse | null>(null);
+    const [simLoading, setSimLoading] = useState(false);
+
+    // Initialize overrides when prediction loads or simulation mode toggled
+    useEffect(() => {
+        if (simulationMode && prediction?.top_features) {
+            const initial: Record<string, number> = {};
+            prediction.top_features.forEach(f => {
+                initial[f.feature] = f.current_value;
+            });
+            setOverrides(initial);
+            setSimPrediction(prediction);
+        } else {
+            setSimPrediction(null);
+        }
+    }, [simulationMode, prediction]);
+
+    // Debounced simulation
+    useEffect(() => {
+        if (!simulationMode || Object.keys(overrides).length === 0) return;
+
+        setSimLoading(true);
+        const timer = setTimeout(async () => {
+            try {
+                const res = await triggerSimulation(overrides);
+                if (res.status !== "error") {
+                    setSimPrediction(res);
+                }
+            } catch (e) {
+                console.error(e);
+            } finally {
+                setSimLoading(false);
+            }
+        }, 150);
+
+        return () => clearTimeout(timer);
+    }, [overrides, simulationMode]);
+
+    const displayPrediction = simulationMode ? (simPrediction || prediction) : prediction;
 
     const loadPrediction = async () => {
         try {
@@ -97,24 +139,30 @@ export function ModelInterface() {
 
                         {loading ? (
                             <div className="animate-pulse h-12 w-32 bg-zinc-800 rounded" />
-                        ) : prediction?.prediction ? (
-                            <div className="text-center space-y-2">
-                                <div className={`text-4xl font-black tracking-tighter ${prediction.prediction === "up" ? "text-emerald-400" : "text-red-400"}`}>
-                                    {prediction.prediction === "up" ? "BULLISH" : "BEARISH"}
+                        ) : displayPrediction?.prediction ? (
+                            <div className="text-center space-y-2 relative w-full">
+                                {simulationMode && simLoading && (
+                                    <div className="absolute -top-4 right-0 flex items-center gap-1.5 text-indigo-400 text-[10px] uppercase font-bold tracking-wider animate-pulse">
+                                        <div className="w-1.5 h-1.5 rounded-full bg-indigo-400"></div> Simulating
+                                    </div>
+                                )}
+                                <div className={`text-4xl font-black tracking-tighter transition-colors duration-300 ${displayPrediction.prediction === "up" ? "text-emerald-400" : "text-red-400"} ${simulationMode && simLoading ? 'opacity-50' : 'opacity-100'}`}>
+                                    {displayPrediction.prediction === "up" ? "BULLISH" : "BEARISH"}
                                 </div>
-                                {prediction.probability && (
-                                    <div className="text-sm text-zinc-500 font-medium">
-                                        {prediction.prediction === "up"
-                                            ? `${(prediction.probability * 100).toFixed(1)}% Confidence`
-                                            : `${((1 - prediction.probability) * 100).toFixed(1)}% Confidence`
+                                {displayPrediction.probability && (
+                                    <div className={`text-sm font-medium transition-opacity duration-300 ${simulationMode ? 'text-indigo-400' : 'text-zinc-500'} ${simulationMode && simLoading ? 'opacity-50' : 'opacity-100'}`}>
+                                        {displayPrediction.prediction === "up"
+                                            ? `${(displayPrediction.probability * 100).toFixed(1)}% Confidence`
+                                            : `${((1 - displayPrediction.probability) * 100).toFixed(1)}% Confidence`
                                         }
+                                        {simulationMode && " (Simulated)"}
                                     </div>
                                 )}
                                 <div className="text-xs text-zinc-600 mt-2">
-                                    As of closing prices: {prediction.date}
+                                    {simulationMode ? "HYPOTHETICAL SCENARIO" : `As of closing prices: ${displayPrediction.date}`}
                                 </div>
 
-                                {prediction.top_features && (
+                                {prediction?.top_features && (
                                     <details className="mt-6 text-left w-full border border-zinc-800 rounded-lg bg-zinc-900/50 shadow-inner overflow-hidden group cursor-pointer">
                                         <summary className="p-3 text-sm text-zinc-400 font-medium hover:text-zinc-300 select-none flex justify-between items-center transition-colors group-open:bg-zinc-800/80">
                                             How does this work?
@@ -125,12 +173,41 @@ export function ModelInterface() {
                                                 This signal is dynamically generated by a <strong>Random Forest Classifier</strong>, an ensemble machine learning model that aggregates the independent "votes" of 100 separate decision trees trained on 15 years of daily market history.
                                             </p>
                                             <div className="bg-black/20 p-3 rounded border border-zinc-800/50">
-                                                <div className="font-semibold text-zinc-300 mb-2.5 uppercase tracking-wider text-[10px]">Model Drivers (Top 3)</div>
-                                                <ul className="space-y-2">
-                                                    {prediction.top_features.map((f) => (
-                                                        <li key={f.feature} className="flex justify-between items-center">
-                                                            <span className="text-zinc-300">{formatFeatureName(f.feature)}</span>
-                                                            <span className="font-mono text-[10px] text-emerald-500 bg-emerald-500/10 px-1.5 py-0.5 rounded ml-2">{(f.importance * 100).toFixed(1)}% weight</span>
+                                                <div className="flex justify-between items-center mb-2.5">
+                                                    <div className="font-semibold text-zinc-300 uppercase tracking-wider text-[10px]">Model Drivers (Top 20)</div>
+                                                    <label className="flex items-center gap-1.5 text-[10px] uppercase font-bold tracking-wider cursor-pointer text-zinc-400 hover:text-zinc-300">
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={simulationMode}
+                                                            onChange={(e) => setSimulationMode(e.target.checked)}
+                                                            className="rounded border-zinc-700 bg-zinc-800 text-indigo-500 focus:ring-indigo-500 focus:ring-offset-zinc-900"
+                                                        />
+                                                        Simulation Mode
+                                                    </label>
+                                                </div>
+                                                <ul className="space-y-3 max-h-72 overflow-y-auto pr-2 custom-scrollbar">
+                                                    {prediction?.top_features.map((f) => (
+                                                        <li key={f.feature} className="flex flex-col">
+                                                            <div className="flex justify-between items-center">
+                                                                <span className="text-zinc-300">{formatFeatureName(f.feature)}</span>
+                                                                <span className="font-mono text-[10px] text-emerald-500 bg-emerald-500/10 px-1.5 py-0.5 rounded ml-2">{(f.importance * 100).toFixed(1)}%</span>
+                                                            </div>
+                                                            {simulationMode && (
+                                                                <div className="mt-2 flex items-center gap-3">
+                                                                    <span className="text-[10px] text-zinc-500 font-mono w-8 text-right">{f.min.toFixed(2)}</span>
+                                                                    <input
+                                                                        type="range"
+                                                                        min={f.min}
+                                                                        max={f.max}
+                                                                        step={(f.max - f.min) / 100}
+                                                                        value={overrides[f.feature] ?? f.current_value}
+                                                                        onChange={(e) => setOverrides(prev => ({ ...prev, [f.feature]: parseFloat(e.target.value) }))}
+                                                                        className="flex-1 h-1.5 bg-zinc-700 rounded-lg appearance-none cursor-ew-resize accent-indigo-500"
+                                                                    />
+                                                                    <span className="text-[10px] text-zinc-500 font-mono w-8">{f.max.toFixed(2)}</span>
+                                                                    <span className="text-[10px] font-mono font-bold text-zinc-200 w-12 text-right bg-zinc-800 px-1 py-0.5 rounded">{(overrides[f.feature] ?? f.current_value).toFixed(3)}</span>
+                                                                </div>
+                                                            )}
                                                         </li>
                                                     ))}
                                                 </ul>

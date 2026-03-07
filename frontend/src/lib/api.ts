@@ -43,6 +43,18 @@ export async function triggerTrain(): Promise<import("../types").TrainResponse> 
   return res.json();
 }
 
+export async function triggerSimulation(overrides: Record<string, number>): Promise<import("../types").PredictionResponse> {
+  const res = await fetch("/api/simulate", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({ overrides })
+  });
+  if (!res.ok) throw new Error(`API error: ${res.status}`);
+  return res.json();
+}
+
 export async function fetchBacktest(): Promise<import("../types").BacktestResponse> {
   const res = await fetch("/api/backtest");
   if (!res.ok) throw new Error(`API error: ${res.status}`);

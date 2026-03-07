@@ -371,8 +371,33 @@ def get_prediction():
         feature_names = X_latest.columns
         feat_imp = sorted(
             zip(feature_names, importances), key=lambda x: x[1], reverse=True
-        )[:3]
-        top_features = [{"feature": f, "importance": float(i)} for f, i in feat_imp]
+        )[:20]
+
+        top_features = []
+        for f, i in feat_imp:
+            # Calculate 1-year historical min/max
+            recent_history = df[str(f)].tail(252).dropna()
+            if recent_history.empty:
+                f_min, f_max = -1.0, 1.0
+            else:
+                f_min = float(recent_history.min())  # type: ignore
+                f_max = float(recent_history.max())  # type: ignore
+
+            # Expand bounds substantially (1000%) to allow simulating absolute Black Swan events
+            f_range = f_max - f_min if f_max != f_min else 0.1
+            f_min -= f_range * 10.0
+            f_max += f_range * 10.0
+
+            current_val = float(X_latest[str(f)].iloc[0])  # type: ignore
+            top_features.append(
+                {
+                    "feature": str(f),
+                    "importance": float(i),
+                    "current_value": current_val,
+                    "min": f_min,
+                    "max": f_max,
+                }
+            )
 
         return {
             "status": "success",
@@ -384,6 +409,54 @@ def get_prediction():
 
     except Exception as e:
         print(f"Predict error: {e}")
+        return {"status": "error", "message": str(e)}
+
+
+class SimulateRequest(BaseModel):
+    overrides: dict[str, float]
+
+
+@app.post("/api/simulate")
+def check_simulation(req: SimulateRequest):
+    try:
+        base_path = Path(__file__).parent / "backtest"
+        features_path = base_path / "macro_features.parquet"
+        model_path = base_path / "rf_model.pkl"
+
+        if not features_path.exists() or not model_path.exists():
+            return {"status": "error", "message": "Model or features not found."}
+
+        df = pd.read_parquet(features_path)
+        clf = joblib.load(model_path)
+
+        latest_row = df.iloc[[-1]].copy()
+
+        feature_cols = [
+            col
+            for col in df.columns
+            if col not in ["target", "^GSPC_ret_5d_future", "^GSPC_ret_1d_future"]
+            and "future" not in col.lower()
+        ]
+
+        X_latest = latest_row[feature_cols]
+
+        # Apply overrides
+        for feature, value in req.overrides.items():
+            if feature in X_latest.columns:
+                X_latest.loc[:, feature] = float(value)  # type: ignore
+
+        pred = clf.predict(X_latest)[0]  # type: ignore
+        probs = clf.predict_proba(X_latest)[0]  # type: ignore
+        prob_up = float(probs[1])  # type: ignore
+
+        return {
+            "status": "success",
+            "prediction": "up" if int(pred) == 1 else "down",
+            "probability": prob_up,
+        }
+
+    except Exception as e:
+        print(f"Simulate error: {e}")
         return {"status": "error", "message": str(e)}
 
 
