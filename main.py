@@ -72,7 +72,7 @@ def fetch_history_data(force_refresh: bool = False) -> dict[str, list[dict]]:
 
     all_tickers = _all_tickers()
     with _yf_lock:
-        data = yf.download(all_tickers, period="3mo", progress=False, threads=False)
+        data = yf.download(all_tickers, period="15y", progress=False, threads=False)
         if data is None:
             return {}
         data = pd.DataFrame(data)  # type: ignore

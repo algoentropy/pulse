@@ -1,10 +1,11 @@
-import { Fragment } from "react";
+import { Fragment, useState } from "react";
 import type { PulseResponse, HistoryResponse, InterpretationResponse, HistoryPoint } from "../types";
 import { CATEGORY_TOOLTIPS, TICKER_TOOLTIPS } from "../lib/tooltips";
 import { formatPrice, formatChange } from "../lib/format";
 import { Tooltip } from "./Tooltip";
 import { Sparkline } from "./Sparkline";
-import { Info } from "lucide-react";
+import { AssetChart } from "./AssetChart";
+import { ChevronRight, ChevronDown, ChevronsUp, ChevronsDown } from "lucide-react";
 
 interface DashboardProps {
   data: PulseResponse;
@@ -49,10 +50,44 @@ function ChangeCell({ value, className = "" }: { value: number | null; className
 }
 
 export function Dashboard({ data, history, interpretation, interpretationLoading, tutorMode, setTutorMode }: DashboardProps) {
+  const [expandedTickers, setExpandedTickers] = useState<Set<string>>(new Set());
+
+  const toggleRow = (ticker: string) => {
+    setExpandedTickers(prev => {
+      const next = new Set(prev);
+      if (next.has(ticker)) {
+        next.delete(ticker);
+      } else {
+        next.add(ticker);
+      }
+      return next;
+    });
+  };
+
+  const allTickers = CATEGORY_KEYS.flatMap(key => data[key].tickers.map(t => t.ticker));
+  const isAllExpanded = allTickers.length > 0 && allTickers.every(t => expandedTickers.has(t));
+  const toggleAll = () => {
+    if (isAllExpanded) {
+      setExpandedTickers(new Set());
+    } else {
+      setExpandedTickers(new Set(allTickers));
+    }
+  };
+
   return (
     <div>
       <div className="flex justify-between items-center mb-4">
-        <h2 className="text-xl font-bold text-zinc-100">Market Pulse</h2>
+        <div className="flex items-center gap-2">
+          <h2 className="text-xl font-bold text-zinc-100 mr-2">Market Pulse</h2>
+          <Tooltip text={isAllExpanded ? "Collapse all" : "Expand all"}>
+            <button
+              onClick={toggleAll}
+              className="p-1 text-zinc-400 hover:text-zinc-200 hover:bg-white/10 rounded transition-colors"
+            >
+              {isAllExpanded ? <ChevronsUp className="w-4 h-4" /> : <ChevronsDown className="w-4 h-4" />}
+            </button>
+          </Tooltip>
+        </div>
         {setTutorMode && (
           <div className="flex bg-zinc-900 border border-zinc-800 p-1 rounded-lg">
             <button
@@ -102,21 +137,46 @@ export function Dashboard({ data, history, interpretation, interpretationLoading
               const summary = interpretation?.categories[key];
               const summaryLoading = interpretationLoading && !interpretation;
 
+              const sectionTickers = cat.tickers.map(t => t.ticker);
+              const isSectionExpanded = sectionTickers.length > 0 && sectionTickers.every(t => expandedTickers.has(t));
+              const toggleSection = () => {
+                setExpandedTickers(prev => {
+                  const next = new Set(prev);
+                  if (isSectionExpanded) {
+                    sectionTickers.forEach(t => next.delete(t));
+                  } else {
+                    sectionTickers.forEach(t => next.add(t));
+                  }
+                  return next;
+                });
+              };
+
+              const titleEl = (
+                <div className="flex items-center gap-2">
+                  <span className="text-lg font-semibold text-zinc-100">{cat.label}</span>
+                  <Tooltip text={isSectionExpanded ? "Collapse section" : "Expand section"}>
+                    <button onClick={toggleSection} className="p-0.5 mt-0.5 text-zinc-500 hover:text-zinc-300 hover:bg-white/10 rounded transition-colors">
+                      {isSectionExpanded ? <ChevronsUp className="w-4 h-4" /> : <ChevronsDown className="w-4 h-4" />}
+                    </button>
+                  </Tooltip>
+                </div>
+              );
+
               return (
                 <Fragment key={key}>
                   <tr className="border-t border-zinc-700/60">
                     <td colSpan={COL_SPAN} className="px-4 pt-4 pb-1">
                       {catTooltip ? (
-                        <Tooltip text={catTooltip}>
-                          <div>
-                            <span className="text-lg font-semibold text-zinc-100">{cat.label}</span>
-                            <span className="ml-2 text-xs text-zinc-500">{cat.subtitle}</span>
-                          </div>
-                        </Tooltip>
+                        <div>
+                          <Tooltip text={catTooltip}>
+                            {titleEl}
+                          </Tooltip>
+                          <span className="ml-1 text-xs text-zinc-500">{cat.subtitle}</span>
+                        </div>
                       ) : (
                         <div>
-                          <span className="text-lg font-semibold text-zinc-100">{cat.label}</span>
-                          <span className="ml-2 text-xs text-zinc-500">{cat.subtitle}</span>
+                          {titleEl}
+                          <span className="ml-1 text-xs text-zinc-500">{cat.subtitle}</span>
                         </div>
                       )}
                     </td>
@@ -162,37 +222,73 @@ export function Dashboard({ data, history, interpretation, interpretationLoading
                     const chg1W = historyData ? changeFromHistory(historyData, 5) : null;
                     const chg1M = historyData ? changeFromHistory(historyData, 21) : null;
 
+                    const isExpanded = expandedTickers.has(t.ticker);
                     const tickerTooltip = t.description || TICKER_TOOLTIPS[t.ticker];
-                    const tooltipText = tickerTooltip ? `${t.name}: ${tickerTooltip}` : t.name;
+
                     const nameEl = (
                       <div className="flex items-center gap-1.5">
+                        {isExpanded ? <ChevronDown className="w-4 h-4 text-indigo-400" /> : <ChevronRight className="w-4 h-4 text-zinc-500" />}
                         <span className="hidden sm:inline text-sm text-zinc-200">{t.name}</span>
                         <span className="sm:hidden text-sm text-zinc-200 font-medium">{t.ticker}</span>
-                        {tickerTooltip && (
-                          <Tooltip text={tooltipText}>
-                            <Info className="w-3.5 h-3.5 text-zinc-500 hover:text-zinc-300 transition-colors cursor-help" />
-                          </Tooltip>
-                        )}
                       </div>
                     );
 
                     return (
-                      <tr key={t.ticker} className="hover:bg-white/5 transition-colors">
-                        <td className="py-1.5 px-2 sm:px-4 truncate max-w-[120px] sm:max-w-none">
-                          {nameEl}
-                        </td>
-                        <td className="py-1.5 px-2 sm:px-4 text-sm text-zinc-300 text-right tabular-nums">
-                          {formatPrice(t.ticker, t.price!)}
-                        </td>
-                        <ChangeCell value={chg1D} />
-                        <ChangeCell value={chg1W} />
-                        <ChangeCell value={chg1M} />
-                        <td className="py-1.5 px-2 sm:px-4 hidden sm:table-cell">
-                          <div className="flex justify-center">
-                            {historyData && historyData.length >= 2 && <Sparkline data={historyData} />}
-                          </div>
-                        </td>
-                      </tr>
+                      <Fragment key={t.ticker}>
+                        <tr
+                          className={`hover:bg-white/10 transition-colors cursor-pointer ${isExpanded ? "bg-white/5" : ""}`}
+                          onClick={() => toggleRow(t.ticker)}
+                        >
+                          <td className="py-2 px-2 sm:px-4 truncate max-w-[120px] sm:max-w-none">
+                            {nameEl}
+                          </td>
+                          <td className="py-2 px-2 sm:px-4 text-sm text-zinc-300 text-right tabular-nums">
+                            {formatPrice(t.ticker, t.price!)}
+                          </td>
+                          <ChangeCell value={chg1D} />
+                          <ChangeCell value={chg1W} />
+                          <ChangeCell value={chg1M} />
+                          <td className="py-2 px-2 sm:px-4 hidden sm:table-cell">
+                            <div className="flex justify-center w-[80px] h-[24px]">
+                              {historyData && historyData.length >= 2 && <Sparkline data={historyData.slice(-126)} />}
+                            </div>
+                          </td>
+                        </tr>
+                        {isExpanded && (
+                          <tr className="bg-white/5 border-b border-zinc-800/50">
+                            <td colSpan={COL_SPAN} className="p-4 sm:p-6 shadow-inner">
+                              <div className="flex flex-col gap-6">
+                                <div className="flex-1 space-y-3">
+                                  <h4 className="text-base font-semibold text-zinc-100">{t.name} <span className="text-zinc-500 text-sm font-normal">({t.ticker})</span></h4>
+                                  <p className="text-sm text-zinc-400 leading-relaxed max-w-4xl">{tickerTooltip || "No fundamental description available for this asset."}</p>
+
+                                  <div className="grid grid-cols-2 gap-4 mt-4 bg-zinc-950/60 p-4 rounded-lg border border-zinc-800 xl:w-1/2">
+                                    <div>
+                                      <div className="text-xs text-zinc-500 uppercase tracking-wider mb-1">Current Price</div>
+                                      <div className="text-sm font-medium text-zinc-200 tabular-nums">{formatPrice(t.ticker, t.price!)}</div>
+                                    </div>
+                                    <div>
+                                      <div className="text-xs text-zinc-500 uppercase tracking-wider mb-1">1-Month Range</div>
+                                      <div className="text-sm font-medium text-zinc-200 tabular-nums">
+                                        {historyData ? `${formatPrice(t.ticker, Math.min(...historyData.slice(-21).map(d => d.value)))} — ${formatPrice(t.ticker, Math.max(...historyData.slice(-21).map(d => d.value)))}` : "—"}
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+
+                                {historyData && historyData.length >= 2 && (
+                                  <div className="w-full bg-zinc-950/60 rounded-lg border border-zinc-800 p-4 mt-2">
+                                    <div className="text-xs text-zinc-500 uppercase tracking-wider w-full text-left mb-4">Interactive 15-Year Trend</div>
+                                    <div className="w-full">
+                                      <AssetChart data={historyData} />
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                      </Fragment>
                     );
                   })}
                 </Fragment>
