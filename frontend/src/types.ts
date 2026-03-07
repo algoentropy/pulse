@@ -73,3 +73,37 @@ export interface BacktestResponse {
   strategy: FeaturePoint[];
   benchmark: FeaturePoint[];
 }
+
+export interface AnalogueFeatureDiff {
+  feature: string;
+  ref_value: number;
+  analogue_value: number;
+  abs_diff: number;
+}
+
+export interface AnalogueResult {
+  rank: number;
+  start_date: string;
+  end_date: string;
+  combined_score: number;
+  macro_score: number;
+  price_score: number;
+  forward_returns: {
+    "5d"?: number;
+    "21d"?: number;
+    "63d"?: number;
+  };
+  sp500_prices: Array<{ time: string; value: number }>;
+  top_feature_diffs: AnalogueFeatureDiff[];
+}
+
+export interface AnaloguesResponse {
+  status: string;
+  reference_date: string;
+  window_days: number;
+  macro_weight: number;
+  price_weight: number;
+  n_candidates_scored: number;
+  reference_prices: Array<{ time: string; value: number }>;
+  analogues: AnalogueResult[];
+}

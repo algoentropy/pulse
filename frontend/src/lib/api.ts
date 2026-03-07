@@ -64,3 +64,10 @@ export async function fetchBacktest(): Promise<import("../types").BacktestRespon
   if (!res.ok) throw new Error(`API error: ${res.status}`);
   return res.json();
 }
+
+export async function fetchAnalogues(refresh: boolean = false): Promise<import("../types").AnaloguesResponse> {
+  const url = refresh ? "/api/analogues?refresh=true" : "/api/analogues";
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`API error: ${res.status}`);
+  return res.json();
+}

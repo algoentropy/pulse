@@ -4,6 +4,7 @@ import { fetchPulse, fetchHistory, fetchInterpretation, fetchFeatures } from "./
 import { Dashboard } from "./components/Dashboard";
 import { MacroSignals } from "./components/MacroSignals";
 import { ModelInterface } from "./components/ModelInterface";
+import { Analogues } from "./components/Analogues";
 
 export default function App() {
   const [data, setData] = useState<PulseResponse | null>(null);
@@ -88,6 +89,8 @@ export default function App() {
         />}
 
         {features && <MacroSignals data={features} />}
+
+        <Analogues />
 
         {!loading && !error && <ModelInterface />}
       </main>

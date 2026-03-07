@@ -18,6 +18,7 @@ from fastapi.staticfiles import StaticFiles
 from openai import OpenAI
 from pydantic import BaseModel
 
+from backtest.analogues import get_analogues_cached
 from backtest.data_pipeline import build_features
 from backtest.model import train_model
 
@@ -589,6 +590,94 @@ def get_backtest():
     except Exception as e:
         print(f"Backtest API error: {e}")
         return {"strategy": [], "benchmark": []}
+
+
+@app.get("/api/analogues")
+def get_analogues(
+    n: int = 5,
+    window: int = 63,
+    macro_weight: float = 0.6,
+    price_weight: float = 0.4,
+    reference_date: str | None = None,
+    date_from: str | None = None,
+    date_to: str | None = None,
+    price_method: str = "pearson",
+    refresh: bool = False,
+):
+    """
+    Return the top-N historical periods most similar to the current (or
+    specified) market state.
+
+    Query parameters
+    ----------------
+    n              : Number of analogues to return (default 5, max 20).
+    window         : Lookback window in trading days used for the S&P 500 price
+                     trajectory comparison (default 63 ≈ one quarter).
+    macro_weight   : Weight for the macro regime similarity component (default 0.6).
+    price_weight   : Weight for the S&P 500 price trajectory similarity (default 0.4).
+    reference_date : ISO date (YYYY-MM-DD) to treat as "today".  Defaults to
+                     the most recent date in the features parquet.
+    date_from      : ISO date — earliest candidate end-date to search.
+    date_to        : ISO date — latest candidate end-date to search.
+    price_method   : "pearson" (default, fast) or "dtw" (handles temporal warping).
+    refresh        : Pass true to bypass the 30-minute result cache.
+
+    Response shape
+    --------------
+    {
+      "status": "success",
+      "reference_date": "2026-03-06",
+      "window_days": 63,
+      "macro_weight": 0.6,
+      "price_weight": 0.4,
+      "n_candidates_scored": 4820,
+      "reference_prices": [{"time": "YYYY-MM-DD", "value": 100.0}, ...],
+      "analogues": [
+        {
+          "rank": 1,
+          "start_date": "2020-06-15",
+          "end_date": "2020-09-10",
+          "combined_score": 0.847,
+          "macro_score": 0.892,
+          "price_score": 0.783,
+          "forward_returns": {"5d": 0.023, "21d": 0.045, "63d": -0.012},
+          "sp500_prices": [{"time": "YYYY-MM-DD", "value": 100.0}, ...],
+          "top_feature_diffs": [
+            {"feature": "^VIX_ret_21d", "ref_value": 1.2, "analogue_value": 1.1, "abs_diff": 0.1},
+            ...
+          ]
+        },
+        ...
+      ]
+    }
+    """
+    try:
+        # Guard against unreasonable parameter values
+        n = max(1, min(n, 20))
+        window = max(10, min(window, 252))
+
+        if price_method not in ("pearson", "dtw"):
+            return {
+                "status": "error",
+                "message": f"Invalid price_method '{price_method}'. Choose 'pearson' or 'dtw'.",
+            }
+
+        return get_analogues_cached(
+            n=n,
+            window=window,
+            macro_weight=macro_weight,
+            price_weight=price_weight,
+            reference_date=reference_date,
+            date_from=date_from,
+            date_to=date_to,
+            price_method=price_method,  # type: ignore[arg-type]
+            force_refresh=refresh,
+        )
+    except FileNotFoundError as exc:
+        return {"status": "error", "message": str(exc)}
+    except Exception as exc:
+        print(f"Analogues API error: {exc}")
+        return {"status": "error", "message": str(exc)}
 
 
 # Serve frontend static files in production
