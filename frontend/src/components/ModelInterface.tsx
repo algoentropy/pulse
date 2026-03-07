@@ -18,6 +18,11 @@ function formatFeatureName(feat: string) {
     return feat.replace(/_/g, " ").replace("ret", "Return ").replace("vol", "Volatility ");
 }
 
+// Bounds for Time Machine
+const minMs = new Date("2011-06-02").getTime();
+// Use start of today to prevent drifting millisecond equality checks
+const maxMs = new Date(new Date().toISOString().split("T")[0]).getTime();
+
 export function ModelInterface() {
     const [prediction, setPrediction] = useState<PredictionResponse | null>(null);
     const [trainRes, setTrainRes] = useState<TrainResponse | null>(null);
@@ -30,6 +35,25 @@ export function ModelInterface() {
     const [overrides, setOverrides] = useState<Record<string, number>>({});
     const [simPrediction, setSimPrediction] = useState<PredictionResponse | null>(null);
     const [simLoading, setSimLoading] = useState(false);
+
+    const [selectedDate, setSelectedDate] = useState<string>("");
+    const [sliderMs, setSliderMs] = useState<number>(maxMs);
+
+    // Sync slider with selectedDate when reset
+    useEffect(() => {
+        if (!selectedDate) {
+            setSliderMs(maxMs);
+        }
+    }, [selectedDate, maxMs]);
+
+    const handleSliderCommit = () => {
+        if (sliderMs >= maxMs - 86400000) { // If very close to today, reset to live
+            setSelectedDate("");
+        } else {
+            const d = new Date(sliderMs);
+            setSelectedDate(d.toISOString().split("T")[0]);
+        }
+    };
 
     // Initialize overrides when prediction loads or simulation mode toggled
     useEffect(() => {
@@ -52,7 +76,7 @@ export function ModelInterface() {
         setSimLoading(true);
         const timer = setTimeout(async () => {
             try {
-                const res = await triggerSimulation(overrides);
+                const res = await triggerSimulation(overrides, selectedDate || undefined);
                 if (res.status !== "error") {
                     setSimPrediction(res);
                 }
@@ -71,7 +95,7 @@ export function ModelInterface() {
     const loadPrediction = async () => {
         try {
             setLoading(true);
-            const res = await fetchPrediction();
+            const res = await fetchPrediction(selectedDate || undefined);
             if (res.status === "error") {
                 setError(res.message || "Failed to load prediction");
             } else {
@@ -87,7 +111,7 @@ export function ModelInterface() {
 
     useEffect(() => {
         loadPrediction();
-    }, []);
+    }, [selectedDate]);
 
     const handleTrain = async () => {
         try {
@@ -116,13 +140,39 @@ export function ModelInterface() {
                     <h2 className="text-xl font-bold tracking-tight text-zinc-100">Quantitative Model</h2>
                     <p className="text-sm text-zinc-500">Random Forest 5-Day Directional Forecast</p>
                 </div>
-                <button
-                    onClick={handleTrain}
-                    disabled={training}
-                    className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 disabled:opacity-50 disabled:cursor-not-allowed border border-zinc-700 rounded-md text-sm font-medium transition-colors whitespace-nowrap"
-                >
-                    {training ? "Rebuilding Pipeline..." : "Retrain Model"}
-                </button>
+                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+                    <div className="flex items-center gap-3 bg-zinc-900/80 p-2 rounded-lg border border-zinc-800 flex-grow sm:flex-grow-0">
+                        <label className="text-xs text-zinc-400 font-semibold uppercase tracking-wider pl-2 whitespace-nowrap flex-shrink-0">
+                            Time Machine: <span className="text-indigo-400">{selectedDate || "Live"}</span>
+                        </label>
+                        <input
+                            type="range"
+                            min={minMs}
+                            max={maxMs}
+                            step={86400000} // daily steps
+                            value={sliderMs}
+                            onChange={(e) => setSliderMs(parseInt(e.target.value))}
+                            onMouseUp={handleSliderCommit}
+                            onTouchEnd={handleSliderCommit}
+                            className="w-32 sm:w-48 accent-indigo-500 cursor-pointer h-2 bg-zinc-800 rounded-lg appearance-none"
+                        />
+                        {selectedDate && (
+                            <button
+                                onClick={() => setSelectedDate("")}
+                                className="text-xs text-zinc-500 hover:text-red-400 pr-2 transition-colors whitespace-nowrap"
+                            >
+                                Reset
+                            </button>
+                        )}
+                    </div>
+                    <button
+                        onClick={handleTrain}
+                        disabled={training}
+                        className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 disabled:opacity-50 disabled:cursor-not-allowed border border-zinc-700 rounded-md text-sm font-medium transition-colors whitespace-nowrap"
+                    >
+                        {training ? "Rebuilding Pipeline..." : "Retrain Model"}
+                    </button>
+                </div>
             </div>
 
             <div className="rounded-xl border border-zinc-800 bg-zinc-900/80 p-6">

@@ -31,8 +31,9 @@ export async function fetchFeatures(): Promise<import("../types").FeaturesRespon
   return res.json();
 }
 
-export async function fetchPrediction(): Promise<import("../types").PredictionResponse> {
-  const res = await fetch("/api/predict");
+export async function fetchPrediction(date?: string): Promise<import("../types").PredictionResponse> {
+  const url = date ? `/api/predict?date=${date}` : "/api/predict";
+  const res = await fetch(url);
   if (!res.ok) throw new Error(`API error: ${res.status}`);
   return res.json();
 }
@@ -43,13 +44,16 @@ export async function triggerTrain(): Promise<import("../types").TrainResponse> 
   return res.json();
 }
 
-export async function triggerSimulation(overrides: Record<string, number>): Promise<import("../types").PredictionResponse> {
+export async function triggerSimulation(overrides: Record<string, number>, date?: string): Promise<import("../types").PredictionResponse> {
+  const body: any = { overrides };
+  if (date) body.date = date;
+
   const res = await fetch("/api/simulate", {
     method: "POST",
     headers: {
       "Content-Type": "application/json"
     },
-    body: JSON.stringify({ overrides })
+    body: JSON.stringify(body)
   });
   if (!res.ok) throw new Error(`API error: ${res.status}`);
   return res.json();

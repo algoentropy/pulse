@@ -337,7 +337,7 @@ def get_features():
 
 
 @app.get("/api/predict")
-def get_prediction():
+def get_prediction(date: str | None = None):
     try:
         base_path = Path(__file__).parent / "backtest"
         features_path = base_path / "macro_features.parquet"
@@ -349,7 +349,18 @@ def get_prediction():
         df = pd.read_parquet(features_path)
         clf = joblib.load(model_path)
 
-        # The last row represents the most recent close
+        if date:
+            target_date = pd.to_datetime(date)
+            # Find the closest matching date that is <= target_date
+            # Assuming df index is already sorted datetime
+            df = df.loc[:target_date]  # type: ignore
+            if df.empty:
+                return {
+                    "status": "error",
+                    "message": "No data available before this date.",
+                }
+
+        # The last row represents the most recent close (or the requested date)
         latest_row = df.iloc[[-1]]
 
         # Reconstruct the feature columns the model expects
@@ -414,6 +425,7 @@ def get_prediction():
 
 class SimulateRequest(BaseModel):
     overrides: dict[str, float]
+    date: str | None = None
 
 
 @app.post("/api/simulate")
@@ -428,6 +440,15 @@ def check_simulation(req: SimulateRequest):
 
         df = pd.read_parquet(features_path)
         clf = joblib.load(model_path)
+
+        if req.date:
+            target_date = pd.to_datetime(req.date)
+            df = df.loc[:target_date]  # type: ignore
+            if df.empty:
+                return {
+                    "status": "error",
+                    "message": "No data available before this date.",
+                }
 
         latest_row = df.iloc[[-1]].copy()
 
