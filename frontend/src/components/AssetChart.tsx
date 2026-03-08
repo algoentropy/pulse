@@ -23,6 +23,7 @@ export function AssetChart({ data }: { data: HistoryPoint[] }) {
             timeScale: {
                 timeVisible: true,
                 borderColor: "#3f3f46",
+                minBarSpacing: 0.01,
             },
             rightPriceScale: {
                 borderColor: "#3f3f46",

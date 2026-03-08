@@ -305,8 +305,6 @@ def get_features():
             return {"copper_gold": [], "vix_tnx": []}
 
         df = pd.read_parquet(features_path)
-        # Take the last 252 trading days (~1 year)
-        df = df.tail(252)
 
         # Prepare the lists according to lightweight-charts expected format { time: "YYYY-MM-DD", value: float }
         copper_gold = []

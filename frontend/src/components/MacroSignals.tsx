@@ -27,6 +27,7 @@ function LineChart({ data, color, title }: { data: FeaturePoint[]; color: string
             timeScale: {
                 timeVisible: true,
                 borderColor: '#3f3f46',
+                minBarSpacing: 0.01,
             },
             rightPriceScale: {
                 borderColor: '#3f3f46',
@@ -82,7 +83,7 @@ export function MacroSignals({ data }: MacroSignalsProps) {
     return (
         <div className="mt-8">
             <div className="mb-4">
-                <h2 className="text-xl font-bold tracking-tight text-zinc-100">Macro Signals (1Y Trend)</h2>
+                <h2 className="text-xl font-bold tracking-tight text-zinc-100">Macro Signals (15Y Trend)</h2>
                 <p className="text-sm text-zinc-500">Engineered features for quantitative modeling</p>
             </div>
 
